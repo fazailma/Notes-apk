@@ -156,18 +156,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
               ? _buildErrorWidget()
-              : Column(
-                  children: [
-                    _buildCalendar(),
-                    const SizedBox(height: 16),
-                    _buildEventsList(),
-                  ],
+              : SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    children: [
+                      _buildCalendar(),
+                      const SizedBox(height: 16),
+                      _buildEventsList(),
+                    ],
+                  ),
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAddEvent,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      // HAPUS FloatingActionButton
     );
   }
 
@@ -312,168 +311,175 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget _buildEventsList() {
     final events = _selectedDay != null ? _getEventsForDay(_selectedDay!) : [];
     
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _selectedDay != null
-                      ? 'Acara ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}'
-                      : 'Pilih tanggal untuk melihat acara',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      // UBAH: Gunakan tinggi minimum untuk events list
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height * 0.4, // Minimal 40% dari tinggi layar
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _selectedDay != null
+                    ? 'Acara ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}'
+                    : 'Pilih tanggal untuk melihat acara',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (_selectedDay != null)
+                TextButton.icon(
+                  onPressed: _navigateToAddEvent,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Tambah'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
                 ),
-                if (_selectedDay != null)
-                  TextButton.icon(
-                    onPressed: _navigateToAddEvent,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Tambah'),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // UBAH: Gunakan ListView tanpa Expanded karena sudah dalam SingleChildScrollView
+          events.isEmpty
+              ? Container(
+                  height: 200,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.event_busy,
+                          size: 48,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Tidak ada acara untuk hari ini',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _navigateToAddEvent,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Tambah Acara'),
+                        ),
+                      ],
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: events.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.event_busy,
-                            size: 48,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Tidak ada acara untuk hari ini',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade600,
+                )
+              : ListView.builder(
+                  shrinkWrap: true, // PENTING: Agar ListView tidak mengambil ruang tak terbatas
+                  physics: const NeverScrollableScrollPhysics(), // Disable scroll di ListView karena parent sudah scrollable
+                  itemCount: events.length,
+                  itemBuilder: (context, index) {
+                    final event = events[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: InkWell(
+                        onTap: () => _navigateToEventDetail(event),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: event.colorValue.withOpacity(0.3),
+                              width: 2,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: _navigateToAddEvent,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Tambah Acara'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: events.length,
-                      itemBuilder: (context, index) {
-                        final event = events[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: InkWell(
-                            onTap: () => _navigateToEventDetail(event),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            leading: Container(
+                              width: 4,
+                              height: double.infinity,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: event.colorValue.withOpacity(0.3),
-                                  width: 2,
-                                ),
+                                color: event.colorValue,
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                leading: Container(
-                                  width: 4,
-                                  height: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: event.colorValue,
-                                    borderRadius: BorderRadius.circular(4),
+                            ),
+                            title: Text(
+                              event.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (event.description != null && event.description!.isNotEmpty)
+                                  Text(
+                                    event.description!,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                                title: Text(
-                                  event.title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(height: 4),
+                                Row(
                                   children: [
-                                    if (event.description != null && event.description!.isNotEmpty)
-                                      Text(
-                                        event.description!,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
+                                    Icon(
+                                      Icons.access_time,
+                                      size: 14,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      event.formattedTime,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
                                       ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.access_time,
-                                          size: 14,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          event.formattedTime,
+                                    ),
+                                  ],
+                                ),
+                                if (event.location != null && event.location!.isNotEmpty)
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.location_on,
+                                        size: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          event.location!,
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey.shade600,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ],
-                                    ),
-                                    if (event.location != null && event.location!.isNotEmpty)
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.location_on,
-                                            size: 14,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              event.location!,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
                                       ),
-                                  ],
-                                ),
-                                trailing: Icon(
-                                  Icons.chevron_right,
-                                  color: Colors.grey.shade400,
-                                ),
-                              ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                            trailing: Icon(
+                              Icons.chevron_right,
+                              color: Colors.grey.shade400,
                             ),
                           ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ],
       ),
     );
   }

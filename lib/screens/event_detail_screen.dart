@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:your_creative_notebook/models/event.dart';
 import 'package:your_creative_notebook/services/pocketbase_service.dart';
 import 'package:your_creative_notebook/screens/edit_event_screen.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
@@ -15,6 +18,26 @@ class EventDetailScreen extends StatefulWidget {
 class _EventDetailScreenState extends State<EventDetailScreen> {
   final PocketbaseService _pbService = PocketbaseService();
   bool _isLoading = false;
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeNotifications();
+  }
+
+  Future<void> _initializeNotifications() async {
+    tz.initializeTimeZones();
+    
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    final InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+    );
+
+    await _flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
 
   Future<void> _deleteEvent() async {
     final confirmed = await showDialog<bool>(
@@ -84,6 +107,67 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  Future<void> _scheduleNotification() async {
+    try {
+      const AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
+        'your_channel_id',
+        'your_channel_name',
+        channelDescription: 'your_channel_description',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
+
+      const NotificationDetails platformChannelSpecifics =
+          NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    // Menentukan waktu notifikasi
+    DateTime scheduledDate;
+    if (widget.event.reminder != null) {
+      // Jika ada reminder, jadwalkan sesuai dengan reminder
+      scheduledDate = DateTime.now().add(Duration(minutes: widget.event.reminder!));
+    } else {
+      // Jika tidak ada reminder, jadwalkan sekarang
+      scheduledDate = DateTime.now();
+    }
+
+    // PERBAIKAN: Gunakan data event yang sebenarnya
+    String notificationTitle = widget.event.title;
+    String notificationBody = widget.event.description ?? 'Acara akan segera dimulai';
+    
+    // Jika ada reminder, tambahkan info waktu
+    if (widget.event.reminder != null && widget.event.reminder! > 0) {
+      notificationBody = '${widget.event.description ?? widget.event.title} - ${_getReminderText(widget.event.reminder!)}';
+    }
+
+    // Menggunakan zonedSchedule sebagai pengganti schedule
+    await _flutterLocalNotificationsPlugin.zonedSchedule(
+      widget.event.id.hashCode,
+      notificationTitle, // Gunakan judul event yang sebenarnya
+      notificationBody,  // Gunakan deskripsi event yang sebenarnya
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      platformChannelSpecifics,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Pengingat untuk "${widget.event.title}" berhasil dijadwalkan'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Gagal menjadwalkan pengingat: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -104,6 +188,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   )
                 : const Icon(Icons.delete, color: Colors.red),
           ),
+          if (widget.event.reminder != null)
+            IconButton(
+              onPressed: _scheduleNotification,
+              icon: const Icon(Icons.notifications),
+            ),
         ],
       ),
       body: SingleChildScrollView(

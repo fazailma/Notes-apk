@@ -75,8 +75,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isStartDate ? _startDate : _endDate,
-      firstDate: DateTime(2023),
-      lastDate: DateTime(2025),
+      firstDate: DateTime(2020), // Allow past dates
+      lastDate: DateTime(2030),  // Extended future dates
     );
     if (picked != null) {
       setState(() {
@@ -387,7 +387,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<int?>(
-              value: _reminder,
+              value: _reminder == 0 ? null : _reminder,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.notifications),
