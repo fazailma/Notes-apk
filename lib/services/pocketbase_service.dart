@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:universal_io/io.dart' as universal_io; // Impor universal_io
+import 'package:universal_io/io.dart' as universal_io;
 
 class PocketbaseService {
   static final PocketbaseService _instance = PocketbaseService._internal();
@@ -87,7 +87,7 @@ class PocketbaseService {
       return true;
     } catch (e) {
       print('Login error: $e');
-      return false;
+      throw Exception('Gagal login: $e');
     }
   }
 
@@ -103,7 +103,7 @@ class PocketbaseService {
       return await login(email, password);
     } catch (e) {
       print('Register error: $e');
-      return false;
+      throw Exception('Gagal register: $e');
     }
   }
 
@@ -116,7 +116,8 @@ class PocketbaseService {
   bool get isLoggedIn => pb.authStore.isValid;
   dynamic get currentUser => pb.authStore.model;
 
-  Future<String?> uploadProfilePicture(io.File imageFile) async {
+  // Untuk platform mobile (Android/iOS)
+  Future<String?> uploadProfilePicture(universal_io.File imageFile) async {
     if (!isLoggedIn) {
       print('User tidak login');
       throw Exception('User is not logged in');
@@ -126,12 +127,18 @@ class PocketbaseService {
       final userId = pb.authStore.model.id;
       print('Mengunggah gambar untuk user ID: $userId');
 
+      if (!await imageFile.exists()) {
+        throw Exception('File gambar tidak ditemukan');
+      }
+      if (imageFile.lengthSync() > 10 * 1024 * 1024) {
+        throw Exception('Ukuran file melebihi 10MB');
+      }
+
       final request = http.MultipartRequest(
         'PATCH',
         Uri.parse('http://127.0.0.1:8090/api/collections/users/records/$userId'),
       );
 
-      // Gunakan universal_io untuk kompatibilitas web
       final bytes = await imageFile.readAsBytes();
       request.files.add(http.MultipartFile.fromBytes(
         'avatar',
@@ -154,6 +161,11 @@ class PocketbaseService {
           print('Field avatar kosong di response');
           throw Exception('Field avatar tidak ditemukan di response');
         }
+        
+        // Update authStore dengan data terbaru
+        pb.authStore.save(pb.authStore.token, RecordModel.fromJson(updatedRecord));
+        await _saveAuthToStorage();
+        
         final avatarUrl = 'http://127.0.0.1:8090/api/files/users/$userId/${updatedRecord['avatar']}';
         print('Gambar berhasil diunggah: $avatarUrl');
         return avatarUrl;
@@ -163,6 +175,66 @@ class PocketbaseService {
       }
     } catch (e) {
       print('Error unggah gambar: $e');
+      throw Exception('Gagal unggah gambar: $e');
+    }
+  }
+
+  // Untuk platform web
+  Future<String?> uploadProfilePictureWeb(XFile imageFile) async {
+    if (!isLoggedIn) {
+      print('User tidak login');
+      throw Exception('User is not logged in');
+    }
+
+    try {
+      final userId = pb.authStore.model.id;
+      print('Mengunggah gambar untuk user ID: $userId (web)');
+
+      final bytes = await imageFile.readAsBytes();
+      if (bytes.length > 10 * 1024 * 1024) {
+        throw Exception('Ukuran file melebihi 10MB');
+      }
+
+      final request = http.MultipartRequest(
+        'PATCH',
+        Uri.parse('http://127.0.0.1:8090/api/collections/users/records/$userId'),
+      );
+
+      request.files.add(http.MultipartFile.fromBytes(
+        'avatar',
+        bytes,
+        filename: imageFile.name,
+      ));
+      request.headers['Authorization'] = 'Bearer ${pb.authStore.token}';
+      request.headers['Content-Type'] = 'multipart/form-data';
+
+      print('Mengirim request ke server (web)...');
+      final response = await request.send();
+      final responseData = await http.Response.fromStream(response);
+
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${responseData.body}');
+
+      if (response.statusCode == 200) {
+        final updatedRecord = jsonDecode(responseData.body);
+        if (updatedRecord['avatar'] == null || updatedRecord['avatar'].isEmpty) {
+          print('Field avatar kosong di response');
+          throw Exception('Field avatar tidak ditemukan di response');
+        }
+        
+        // Update authStore dengan data terbaru
+        pb.authStore.save(pb.authStore.token, RecordModel.fromJson(updatedRecord));
+        await _saveAuthToStorage();
+        
+        final avatarUrl = 'http://127.0.0.1:8090/api/files/users/$userId/${updatedRecord['avatar']}';
+        print('Gambar berhasil diunggah (web): $avatarUrl');
+        return avatarUrl;
+      } else {
+        print('Gagal unggah (web): ${responseData.body}');
+        throw Exception('Gagal unggah gambar: Status ${response.statusCode}, ${responseData.body}');
+      }
+    } catch (e) {
+      print('Error unggah gambar (web): $e');
       throw Exception('Gagal unggah gambar: $e');
     }
   }
@@ -194,27 +266,109 @@ class PocketbaseService {
     }
   }
 
-  Future<void> updateProfile(String name, String email) async {
+  Future<RecordModel> updateProfile(String name, String email) async {
     if (!isLoggedIn) {
       print('User tidak login saat mencoba update profil');
       throw Exception('User is not logged in');
     }
+    
     try {
       print('Mengupdate profil: name = $name, email = $email');
-      final currentProfile = await getProfile();
-      final currentEmail = currentProfile.data['email'] as String;
-      if (email != currentEmail) {
-        print('Email berubah dari $currentEmail ke $email, memeriksa validasi...');
+      final userId = pb.authStore.model.id;
+      final currentUser = pb.authStore.model;
+      
+      // Validasi format email di sisi aplikasi
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$');
+      if (!emailRegex.hasMatch(email.trim())) {
+        throw Exception('Format email tidak valid. Gunakan format seperti: user@domain.com');
       }
-      final response = await pb.collection('users').update(pb.authStore.model.id, body: {
-        'name': name,
-        'email': email,
-      });
-      print('Profil berhasil diupdate: $response');
-      await _saveAuthToStorage(); // Perbarui autentikasi
+
+      // Cek email saat ini
+      final currentEmail = currentUser.data['email'] as String;
+      final isEmailChanged = email.trim() != currentEmail;
+      
+      print('Email saat ini: $currentEmail');
+      print('Email baru: $email');
+      print('Email berubah: $isEmailChanged');
+      
+      // Jika hanya nama yang berubah, update hanya nama
+      if (!isEmailChanged) {
+        print('Hanya update nama...');
+        final updateData = {
+          'name': name.trim(),
+        };
+        
+        final updatedRecord = await pb.collection('users').update(userId, body: updateData);
+        print('Nama berhasil diupdate');
+        
+        // Update authStore dengan data terbaru
+        pb.authStore.save(pb.authStore.token, updatedRecord);
+        await _saveAuthToStorage();
+        
+        return updatedRecord;
+      }
+      
+      // Jika email berubah, gunakan API langsung
+      print('Email berubah, menggunakan pendekatan API langsung...');
+      
+      try {
+        // Cek apakah email sudah ada di database
+        final emailCheck = await pb.collection('users').getList(
+          filter: 'email = "$email"',
+          perPage: 1,
+        );
+        if (emailCheck.items.isNotEmpty && emailCheck.items.first.id != userId) {
+          throw Exception('Email sudah digunakan oleh pengguna lain');
+        }
+
+        // Update dengan API langsung
+        final response = await http.patch(
+          Uri.parse('http://127.0.0.1:8090/api/collections/users/records/$userId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${pb.authStore.token}',
+          },
+          body: jsonEncode({
+            'name': name.trim(),
+            'email': email.trim(),
+          }),
+        );
+        
+        print('API Response Status: ${response.statusCode}');
+        print('API Response Body: ${response.body}');
+        
+        if (response.statusCode == 200) {
+          final updatedData = jsonDecode(response.body);
+          final updatedRecord = RecordModel.fromJson(updatedData);
+          
+          // Update authStore dengan data terbaru
+          pb.authStore.save(pb.authStore.token, updatedRecord);
+          await _saveAuthToStorage();
+          
+          print('Profil berhasil diupdate via API');
+          return updatedRecord;
+        } else {
+          // Parse error dari response
+          final errorData = jsonDecode(response.body);
+          String errorMessage = 'Gagal memperbarui profil';
+          
+          if (errorData['message'] != null) {
+            errorMessage = errorData['message'];
+          }
+          
+          if (errorData['data'] != null && errorData['data']['email'] != null) {
+            errorMessage = 'Email: ${errorData['data']['email']['message']}';
+          }
+          
+          throw Exception(errorMessage);
+        }
+      } catch (apiError) {
+        print('Error API call: $apiError');
+        throw Exception(apiError.toString());
+      }
     } catch (e) {
       print('Error updating profile: $e');
-      throw Exception('Failed to update profile: $e');
+      rethrow;
     }
   }
 

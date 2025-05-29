@@ -1,6 +1,7 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:universal_io/io.dart' as universal_io;
 import 'package:your_creative_notebook/models/user.dart';
 import 'package:your_creative_notebook/services/pocketbase_service.dart';
 
@@ -15,9 +16,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   User? user;
   bool _isLoading = true;
   String? _errorMessage;
-  XFile? _imageFile; // Ubah dari File? ke XFile?
+  XFile? _pickedFile;
+  universal_io.File? _imageFile;
   final _pbService = PocketbaseService();
-  final ImagePicker _picker = ImagePicker();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
 
@@ -25,6 +26,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     fetchUserProfile();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchUserProfile() async {
@@ -66,7 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_errorMessage ?? 'Terjadi kesalahan')),
+          SnackBar(content: Text('Terjadi kesalahan: ${e.toString()}')),
         );
       }
     }
@@ -77,7 +85,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final notes = await _pbService.getNotes();
       return notes.length;
     } catch (e) {
-      print('Error fetching notes count: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat jumlah notes: ${e.toString()}')),
+        );
+      }
       return 0;
     }
   }
@@ -87,33 +99,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final folders = await _pbService.getFolders();
       return folders.length;
     } catch (e) {
-      print('Error fetching folders count: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat jumlah folder: ${e.toString()}')),
+        );
+      }
       return 0;
     }
   }
 
   Future<void> _pickImage() async {
     try {
-      final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
       if (pickedFile != null) {
         setState(() {
-          _imageFile = pickedFile; // Simpan sebagai XFile
-          print('Gambar dipilih: ${_imageFile!.path}');
+          _pickedFile = pickedFile;
+          if (!kIsWeb) {
+            _imageFile = universal_io.File(pickedFile.path);
+          }
         });
         await _uploadProfilePicture();
       } else {
-        print('Tidak ada gambar yang dipilih');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Tidak ada gambar yang dipilih')),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memilih gambar: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memilih gambar: ${e.toString()}')),
+        );
+      }
     }
   }
 
   Future<void> _uploadProfilePicture() async {
-    if (_imageFile == null) {
-      print('Gambar belum dipilih');
+    if (_pickedFile == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final avatarUrl = kIsWeb
+          ? await _pbService.uploadProfilePictureWeb(_pickedFile!)
+          : await _pbService.uploadProfilePicture(_imageFile!);
+      
+      await fetchUserProfile();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto profil berhasil diunggah')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengunggah foto profil: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveProfileChanges() async {
+    if (user == null) return;
+
+    final newName = _nameController.text.trim();
+    final newEmail = _emailController.text.trim();
+
+    if (newName.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nama tidak boleh kosong'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (newEmail.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Email tidak boleh kosong'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (newName == user!.name && newEmail == user!.email) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada perubahan data'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
       return;
     }
 
@@ -122,51 +214,124 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      print('Mengunggah gambar ke PocketBase...');
-      final avatarUrl = await _pbService.uploadProfilePicture(_imageFile!);
-      print('URL gambar yang diunggah: $avatarUrl');
-      setState(() {
-        user = user!.copyWith(avatar: avatarUrl);
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto profil berhasil diunggah')),
-      );
+      print('Memulai update profil...');
+      print('Nama: ${user!.name} -> $newName');
+      print('Email: ${user!.email} -> $newEmail');
+      
+      if (newEmail == user!.email) {
+        print('Hanya update nama...');
+        await _pbService.updateProfile(newName, user!.email);
+      } else {
+        if (mounted) {
+          final shouldContinue = await _showEmailChangeConfirmation();
+          if (!shouldContinue) {
+            setState(() {
+              _isLoading = false;
+            });
+            return;
+          }
+        }
+        
+        await _pbService.updateProfile(newName, newEmail);
+      }
+      
+      print('Update berhasil');
+      
+      await fetchUserProfile();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biodata berhasil diperbarui'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      print('Error saat mengunggah gambar: $e');
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengunggah foto profil: $e')),
-      );
+      print('Error update profil: $e');
+      
+      String errorMessage = e.toString();
+      if (errorMessage.contains('Exception: ')) {
+        errorMessage = errorMessage.replaceFirst('Exception: ', '');
+      }
+      
+      if (mounted) {
+        if (errorMessage.contains('email')) {
+          _showEmailFormatHelpDialog(errorMessage);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal memperbarui biodata: $errorMessage'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
     }
   }
 
-  Future<void> _saveProfileChanges() async {
-    if (user == null) return;
+  Future<bool> _showEmailChangeConfirmation() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi Perubahan Email'),
+        content: const Text(
+          'Mengubah email mungkin memerlukan verifikasi ulang. '
+          'Pastikan email baru Anda valid dan dapat diakses. '
+          'Lanjutkan perubahan email?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Lanjutkan'),
+          ),
+        ],
+      ),
+    );
+    
+    return result ?? false;
+  }
 
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _pbService.updateProfile(_nameController.text, _emailController.text);
-      setState(() {
-        user = user!.copyWith(name: _nameController.text, email: _emailController.text);
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Biodata berhasil diperbarui')),
-      );
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memperbarui biodata: $e')),
-      );
-    }
+  void _showEmailFormatHelpDialog(String errorMessage) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Format Email Tidak Valid'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(errorMessage),
+            const SizedBox(height: 16),
+            const Text('Pastikan email Anda:'),
+            const SizedBox(height: 8),
+            const Text('• Menggunakan format yang benar (contoh@domain.com)'),
+            const Text('• Tidak mengandung spasi'),
+            const Text('• Menggunakan domain yang valid (.com, .co.id, dll)'),
+            const Text('• Tidak menggunakan karakter khusus yang tidak diperbolehkan'),
+            const SizedBox(height: 16),
+            const Text('Contoh email yang valid:'),
+            const Text('john.doe@example.com'),
+            const Text('user123@gmail.com'),
+            const Text('nama_pengguna@perusahaan.co.id'),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -185,7 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal logout: $e')),
+          SnackBar(content: Text('Gagal logout: ${e.toString()}')),
         );
       }
     } finally {
@@ -334,6 +499,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showEditProfileDialog() {
+    _nameController.text = user?.name ?? '';
+    _emailController.text = user?.email ?? '';
+    
     showDialog(
       context: context,
       builder: (context) {
@@ -344,25 +512,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               TextField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nama'),
+                decoration: const InputDecoration(
+                  labelText: 'Nama',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                  hintText: 'Masukkan nama lengkap',
+                ),
+                textCapitalization: TextCapitalization.words,
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                  hintText: 'contoh@domain.com',
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Catatan: Email harus menggunakan format yang valid dan sesuai dengan aturan server.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showEmailFormatHelpDialog('Informasi format email yang valid');
+                },
+                icon: const Icon(Icons.help_outline, size: 16),
+                label: const Text('Bantuan format email'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 30),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  alignment: Alignment.centerLeft,
+                ),
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () {
+                _nameController.text = user?.name ?? '';
+                _emailController.text = user?.email ?? '';
                 Navigator.of(context).pop();
               },
               child: const Text('Batal'),
             ),
-            TextButton(
-              onPressed: () {
-                _saveProfileChanges();
+            ElevatedButton(
+              onPressed: () async {
                 Navigator.of(context).pop();
+                await _saveProfileChanges();
               },
               child: const Text('Simpan'),
             ),
