@@ -446,44 +446,112 @@ class PocketbaseService {
 
   Future<RecordModel> createNote(String title, String content, {String? folderId}) async {
     if (!isLoggedIn) {
+      print('Error: User tidak login saat mencoba buat catatan');
       throw Exception('User is not logged in');
     }
     try {
+      print('Creating note with title: $title');
+      print('Content length: ${content.length} characters');
+      print('User ID: ${pb.authStore.model.id}');
+      print('Folder ID: ${folderId ?? 'None (Root folder)'}');
+      
       final data = {
         'title': title,
         'content': content,
         'user_id': pb.authStore.model.id,
       };
+      
       if (folderId != null && folderId.isNotEmpty) {
         data['folder_id'] = folderId;
-        print('Creating note with folder_id: $folderId');
-      } else {
-        print('Creating note without folder_id');
       }
+      
+      // Debug print the entire data object
+      print('Creating note with data: $data');
+      
       final result = await pb.collection('catatan').create(body: data);
-      print('Note created with ID: ${result.id}');
+      print('Note created successfully with ID: ${result.id}');
       return result;
     } catch (e) {
       print('Error creating note: $e');
+      // Try to get more detailed error info if available
+      if (e.toString().contains('Failed to fetch') || e.toString().contains('NetworkError')) {
+        print('Network error detected. Please check your internet connection.');
+        throw Exception('Network error. Please check your internet connection and try again.');
+      }
+      
       throw Exception('Failed to create note: $e');
     }
   }
 
   Future<RecordModel> updateNote(String id, String title, String content) async {
     if (!isLoggedIn) {
+      print('Error: User tidak login saat mencoba update catatan');
       throw Exception('User is not logged in');
     }
     try {
+      print('Updating note with ID: $id');
+      print('New title: $title');
+      print('New content length: ${content.length} characters');
+      
+      // First check if the note belongs to the current user
+      print('Fetching note with ID: $id to check permissions');
       final note = await pb.collection('catatan').getOne(id);
+      
       if (note.data['user_id'] != pb.authStore.model.id) {
+        print('Permission error: Note belongs to user ${note.data['user_id']}, but current user is ${pb.authStore.model.id}');
         throw Exception('You do not have permission to update this note');
       }
-      return await pb.collection('catatan').update(id, body: {
+      
+      // Debug print the update operation
+      print('Updating note...');
+      final data = {
         'title': title,
         'content': content,
-      });
+      };
+      
+      print('Update data: $data');
+      
+      // Try updating with direct HTTP approach first
+      try {
+        print('Attempting direct HTTP update...');
+        final response = await http.patch(
+          Uri.parse('http://127.0.0.1:8090/api/collections/catatan/records/$id'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${pb.authStore.token}',
+          },
+          body: jsonEncode(data),
+        );
+        
+        print('Direct update response status: ${response.statusCode}');
+        print('Direct update response body: ${response.body}');
+        
+        if (response.statusCode == 200) {
+          final updatedData = jsonDecode(response.body);
+          print('Note updated successfully via direct HTTP');
+          return RecordModel.fromJson(updatedData);
+        } else {
+          print('Direct HTTP update failed, falling back to SDK method');
+          throw Exception('HTTP update failed: Status ${response.statusCode}');
+        }
+      } catch (directError) {
+        print('Direct HTTP update error: $directError');
+        print('Falling back to SDK update method...');
+        
+        // Fallback to SDK method
+        final result = await pb.collection('catatan').update(id, body: data);
+        print('Note updated successfully via SDK method');
+        return result;
+      }
     } catch (e) {
       print('Error updating note: $e');
+      
+      // Try to get more detailed error info
+      if (e.toString().contains('Failed to fetch') || e.toString().contains('NetworkError')) {
+        print('Network error detected. Please check your internet connection.');
+        throw Exception('Network error. Please check your internet connection and try again.');
+      }
+      
       throw Exception('Failed to update note: $e');
     }
   }
@@ -526,6 +594,7 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
+      print('Fetching folders for user: ${pb.authStore.model.id}');
       final folders = await pb.collection('folders').getFullList(
             sort: 'name',
             filter: 'user = "${pb.authStore.model.id}"',
@@ -543,12 +612,15 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
-      return await pb.collection('folders').create(body: {
+      print('Creating folder: $name with color: $color');
+      final result = await pb.collection('folders').create(body: {
         'name': name,
         'color': color,
         'icon': icon,
         'user': pb.authStore.model.id,
       });
+      print('Folder created successfully: ${result.id}');
+      return result;
     } catch (e) {
       print('Error creating folder: $e');
       throw Exception('Failed to create folder: $e');
@@ -560,13 +632,28 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
-      return await pb.collection('folders').update(id, body: {
+      print('Updating folder: $id');
+      print('New data - name: $name, color: $color, icon: $icon');
+      
+      // First check if the folder belongs to the current user
+      final folder = await pb.collection('folders').getOne(id);
+      if (folder.data['user'] != pb.authStore.model.id) {
+        throw Exception('You do not have permission to update this folder');
+      }
+      
+      final result = await pb.collection('folders').update(id, body: {
         'name': name,
         'color': color,
         'icon': icon,
       });
+      print('Folder updated successfully');
+      return result;
     } catch (e) {
       print('Error updating folder: $e');
+      // Check if it's a permission error
+      if (e.toString().contains('403') || e.toString().contains('Only superusers')) {
+        throw Exception('Permission denied. Please check your folder permissions in PocketBase.');
+      }
       throw Exception('Failed to update folder: $e');
     }
   }
@@ -576,11 +663,100 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
+      print('Deleting folder: $id');
+      
+      // First check if the folder belongs to the current user
+      final folder = await pb.collection('folders').getOne(id);
+      if (folder.data['user'] != pb.authStore.model.id) {
+        throw Exception('You do not have permission to delete this folder');
+      }
+      
+      // Check if there are notes in this folder
+      final notesInFolder = await getNotesByFolder(id);
+      if (notesInFolder.isNotEmpty) {
+        // Option 1: Delete all notes in the folder first
+        for (final note in notesInFolder) {
+          await deleteNote(note.id);
+        }
+        print('Deleted ${notesInFolder.length} notes from folder');
+      }
+      
       await pb.collection('folders').delete(id);
-      print('Folder deleted: $id');
+      print('Folder deleted successfully: $id');
     } catch (e) {
       print('Error deleting folder: $e');
+      // Check if it's a permission error
+      if (e.toString().contains('403') || e.toString().contains('Only superusers')) {
+        throw Exception('Permission denied. Please check your folder permissions in PocketBase.');
+      }
       throw Exception('Failed to delete folder: $e');
+    }
+  }
+
+  // Alternative method using HTTP directly for folder operations
+  Future<void> deleteFolderDirect(String id) async {
+    if (!isLoggedIn) {
+      throw Exception('User is not logged in');
+    }
+    try {
+      print('Deleting folder directly: $id');
+      
+      final response = await http.delete(
+        Uri.parse('http://127.0.0.1:8090/api/collections/folders/records/$id'),
+        headers: {
+          'Authorization': 'Bearer ${pb.authStore.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      print('Delete response status: ${response.statusCode}');
+      print('Delete response body: ${response.body}');
+      
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        print('Folder deleted successfully via HTTP');
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception('HTTP Delete failed: ${errorData['message'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error deleting folder via HTTP: $e');
+      throw Exception('Failed to delete folder: $e');
+    }
+  }
+
+  Future<RecordModel> updateFolderDirect(String id, String name, String color, String icon) async {
+    if (!isLoggedIn) {
+      throw Exception('User is not logged in');
+    }
+    try {
+      print('Updating folder directly: $id');
+      
+      final response = await http.patch(
+        Uri.parse('http://127.0.0.1:8090/api/collections/folders/records/$id'),
+        headers: {
+          'Authorization': 'Bearer ${pb.authStore.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'name': name,
+          'color': color,
+          'icon': icon,
+        }),
+      );
+      
+      print('Update response status: ${response.statusCode}');
+      print('Update response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final updatedData = jsonDecode(response.body);
+        return RecordModel.fromJson(updatedData);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception('HTTP Update failed: ${errorData['message'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error updating folder via HTTP: $e');
+      throw Exception('Failed to update folder: $e');
     }
   }
 
