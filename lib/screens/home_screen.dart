@@ -420,33 +420,31 @@ class _HomeScreenState extends State<HomeScreen> {
               : _currentIndex == 2
                   ? const NotificationsScreen()
                   : const ProfileScreen(),
-      floatingActionButton: _currentIndex == 0
-          ? Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.purple.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: FloatingActionButton(
-                onPressed: _createNewNote,
-                backgroundColor: Colors.purple,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(
-                  Icons.add,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-            )
-          : null,
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: _createNewNote,
+          backgroundColor: Colors.purple,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(
+            Icons.add,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         elevation: 0,
@@ -897,7 +895,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 2.0,
+        childAspectRatio: 1.4, // Changed from 2.0 to 1.8 to give more height
       ),
       itemCount: _folders.length,
       itemBuilder: (context, index) {
@@ -1258,7 +1256,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Icon(
                           folder.icon,
                           color: folder.color,
-                          size: 16,
+                          size: 10,
                         ),
                       ),
                       const SizedBox(height: 8),
