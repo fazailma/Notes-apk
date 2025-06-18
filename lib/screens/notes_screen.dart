@@ -4,6 +4,8 @@ import 'package:your_creative_notebook/models/folder.dart';
 import 'package:your_creative_notebook/services/pocketbase_service.dart';
 import 'package:your_creative_notebook/screens/note_detail_screen.dart';
 import 'package:your_creative_notebook/widgets/note_card.dart';
+import 'dart:convert';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 class NotesScreen extends StatefulWidget {
   final String? folderId;
@@ -546,9 +548,33 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Fungsi untuk mengekstrak teks biasa dari konten Quill JSON
+  String _extractPlainTextFromQuillContent(String jsonContent) {
+    if (jsonContent.isEmpty) {
+      return '';
+    }
+
+    try {
+      // Parse JSON content
+      final contentJson = jsonDecode(jsonContent);
+      
+      // Buat dokumen Quill dari JSON
+      final document = quill.Document.fromJson(contentJson);
+      
+      // Ekstrak teks biasa
+      return document.toPlainText();
+    } catch (e) {
+      print('Error extracting plain text from Quill content: $e');
+      return '';
+    }
+  }
+
   Widget _buildNoteCard(Note note, int index) {
     final Color backgroundColor = _getNoteColor(index);
     final Color textColor = _getTextColor(backgroundColor);
+    
+    // Ekstrak teks biasa dari konten Quill
+    final plainTextContent = _extractPlainTextFromQuillContent(note.content);
 
     return GestureDetector(
       onTap: () => _navigateToNoteDetail(note),
@@ -628,10 +654,10 @@ class _NotesScreenState extends State<NotesScreen> {
                 
                 const SizedBox(height: 8),
                 
-                // Note content
+                // Note content - Menggunakan teks biasa yang diekstrak
                 Expanded(
                   child: Text(
-                    note.content,
+                    plainTextContent,
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 12,

@@ -9,6 +9,8 @@ import 'package:your_creative_notebook/screens/calendar_screen.dart';
 import 'package:your_creative_notebook/screens/notifications_screen.dart';
 import 'package:your_creative_notebook/services/event_service.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,6 +42,27 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchController.dispose();
     _searchTimer?.cancel();
     super.dispose();
+  }
+
+  // Fungsi untuk mengekstrak teks biasa dari konten Quill JSON
+  String _extractPlainTextFromQuillContent(String jsonContent) {
+    if (jsonContent.isEmpty) {
+      return '';
+    }
+
+    try {
+      // Parse JSON content
+      final contentJson = jsonDecode(jsonContent);
+      
+      // Buat dokumen Quill dari JSON
+      final document = quill.Document.fromJson(contentJson);
+      
+      // Ekstrak teks biasa
+      return document.toPlainText();
+    } catch (e) {
+      print('Error extracting plain text from Quill content: $e');
+      return '';
+    }
   }
 
   Future<void> _initService() async {
@@ -706,6 +729,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         itemBuilder: (context, index) {
           final note = _searchResults[index];
+          // Ekstrak teks biasa untuk search results juga
+          final plainTextContent = _extractPlainTextFromQuillContent(note.content);
+          
           return ListTile(
             leading: Container(
               width: 40,
@@ -733,9 +759,9 @@ class _HomeScreenState extends State<HomeScreen> {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (note.content.isNotEmpty)
+                if (plainTextContent.isNotEmpty)
                   Text(
-                    note.content,
+                    plainTextContent,
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 12,
@@ -1841,6 +1867,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     final Color backgroundColor = _getNoteColor(index);
     final Color textColor = index == 3 ? Colors.white : Colors.black87;
+    
+    // Ekstrak teks biasa dari konten Quill untuk Recent Notes
+    final plainTextContent = _extractPlainTextFromQuillContent(note.content);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1905,7 +1934,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: Text(
-              note.content,
+              plainTextContent, // Menggunakan teks biasa yang diekstrak
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: 12,

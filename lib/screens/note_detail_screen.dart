@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:your_creative_notebook/models/note.dart';
 import 'package:your_creative_notebook/services/pocketbase_service.dart';
 import 'package:intl/intl.dart';
@@ -19,29 +21,47 @@ class NoteDetailScreen extends StatefulWidget {
 
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late TextEditingController _titleController;
-  late TextEditingController _contentController;
+  late quill.QuillController _quillController;
   late FocusNode _contentFocusNode;
+  late ScrollController _scrollController;
   bool _isEditing = false;
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
-  bool _hasNavigatedBack = false; // Flag to prevent multiple navigation
+  bool _hasNavigatedBack = false;
   final PocketbaseService _pbService = PocketbaseService();
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.note.title);
-    _contentController = TextEditingController(text: widget.note.content);
     _contentFocusNode = FocusNode();
+    _scrollController = ScrollController();
+
+    // Initialize QuillController with content
+    try {
+      final contentJson = widget.note.content.isNotEmpty
+          ? jsonDecode(widget.note.content)
+          : <dynamic>[];
+      _quillController = quill.QuillController(
+        document: quill.Document.fromJson(contentJson),
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+    } catch (e) {
+      print('Error parsing note content: $e');
+      _quillController = quill.QuillController(
+        document: quill.Document(),
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+    }
+
     _isEditing = widget.isNewNote;
 
     // Add listeners to track changes
     _titleController.addListener(_onContentChanged);
-    _contentController.addListener(_onContentChanged);
+    _quillController.addListener(_onContentChanged);
 
     if (widget.isNewNote) {
-      _hasUnsavedChanges = true; // New notes always have unsaved changes
-      // Set focus to content for new notes after build
+      _hasUnsavedChanges = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         FocusScope.of(context).requestFocus(_contentFocusNode);
       });
@@ -51,18 +71,21 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   @override
   void dispose() {
     _titleController.removeListener(_onContentChanged);
-    _contentController.removeListener(_onContentChanged);
+    _quillController.removeListener(_onContentChanged);
     _titleController.dispose();
-    _contentController.dispose();
+    _quillController.dispose();
     _contentFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _onContentChanged() {
     if (!_hasUnsavedChanges) {
       setState(() {
-        _hasUnsavedChanges = _titleController.text.trim() != widget.note.title ||
-                           _contentController.text.trim() != widget.note.content;
+        _hasUnsavedChanges =
+            _titleController.text.trim() != widget.note.title ||
+                jsonEncode(_quillController.document.toDelta().toJson()) !=
+                    (widget.note.content.isEmpty ? '[]' : widget.note.content);
       });
     }
   }
@@ -71,45 +94,40 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     return DateFormat('MMM d, yyyy').format(date);
   }
 
-  // This is the ONLY method that should save notes
   Future<void> _saveNote() async {
-    // Prevent multiple saves or navigation
     if (_isSaving || _hasNavigatedBack) {
       print('Save already in progress or already navigated back, ignoring...');
       return;
     }
-    
+
     setState(() {
       _isSaving = true;
     });
 
     try {
-      // Set default title if empty
       String title = _titleController.text.trim();
       if (title.isEmpty) {
         title = 'Untitled Note';
         _titleController.text = title;
       }
 
-      String content = _contentController.text.trim();
-      
+      String content = jsonEncode(_quillController.document.toDelta().toJson());
+
       print('Starting save process...');
 
       if (widget.isNewNote) {
-        // For new notes, create in database
         print('Creating new note with title: "$title"');
         print('Content length: ${content.length} characters');
         print('Folder ID: ${widget.note.folderId ?? "None"}');
-        
+
         final createdNote = await _pbService.createNote(
           title,
           content,
           folderId: widget.note.folderId,
         );
-        
+
         print('Note created successfully with ID: ${createdNote.id}');
-        
-        // Create updated note object with the new ID
+
         final updatedNote = Note(
           id: createdNote.id,
           title: title,
@@ -118,34 +136,32 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           updatedAt: DateTime.parse(createdNote.updated),
           folderId: widget.note.folderId,
           userId: widget.note.userId,
+          color: widget.note.color,
+          tags: widget.note.tags,
         );
 
-        // Return the created note and prevent multiple navigation
         if (mounted && !_hasNavigatedBack) {
           _hasNavigatedBack = true;
           print('Navigating back with created note...');
           Navigator.pop(context, updatedNote);
         }
       } else {
-        // For existing notes, update in database
         print('Updating existing note with ID: ${widget.note.id}');
-        
+
         await _pbService.updateNote(
           widget.note.id,
           title,
           content,
         );
-        
+
         print('Note updated successfully');
-        
-        // Create updated note object
+
         final updatedNote = widget.note.copyWith(
           title: title,
           content: content,
           updatedAt: DateTime.now(),
         );
 
-        // Return the updated note and prevent multiple navigation
         if (mounted && !_hasNavigatedBack) {
           _hasNavigatedBack = true;
           print('Navigating back with updated note...');
@@ -154,7 +170,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       }
     } catch (e) {
       print('Error saving note: $e');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -162,7 +178,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        
+
         setState(() {
           _isSaving = false;
         });
@@ -180,13 +196,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<bool> _onWillPop() async {
-    // This handles Android back button
     if (_isSaving || _hasNavigatedBack) {
-      return false; // Don't allow back navigation if saving or already navigated
+      return false;
     }
 
     if (_isEditing && _hasUnsavedChanges) {
-      // Show dialog asking if user wants to save
       final shouldSave = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -201,7 +215,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   color: Colors.orange.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.save, color: Colors.orange, size: 24),
+                child: const Icon(Icons.save, color: Colors.orange, size: 24),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -242,44 +256,47 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ],
         ),
       );
-      
+
       if (shouldSave == true) {
         await _saveNote();
-        return false; // Navigation is handled in _saveNote
+        return false;
       } else if (shouldSave == false) {
-        // Discard changes and allow back navigation
         if (!_hasNavigatedBack) {
           _hasNavigatedBack = true;
-          Navigator.pop(context); // Pop without result
+          Navigator.pop(context);
         }
         return false;
       }
-      return false; // Dialog dismissed, don't navigate back
+      return false;
     } else if (!_hasNavigatedBack) {
       _hasNavigatedBack = true;
-      Navigator.pop(context); // Pop without result
+      Navigator.pop(context);
       return false;
     }
-    
-    return false; // Default: don't allow system back navigation
+
+    return false;
   }
 
   void _handleBackPress() {
     if (_isSaving || _hasNavigatedBack) {
-      return; // Don't do anything if saving or already navigated
+      return;
     }
-
-    _onWillPop(); // Use the same logic as the Android back button
+    _onWillPop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          _onWillPop();
+        }
+      },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: widget.note.color,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: widget.note.color,
           elevation: 0,
           leading: Container(
             margin: const EdgeInsets.all(8),
@@ -288,7 +305,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
-              icon: Icon(
+              icon: const Icon(
                 Icons.arrow_back_ios_new,
                 color: Colors.purple,
                 size: 20,
@@ -317,19 +334,21 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                       hintText: 'Note Title',
                       hintStyle: TextStyle(fontFamily: 'Poppins'),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
                   ),
                 )
               : Text(
-                  widget.note.title.isEmpty ? 'Untitled Note' : widget.note.title,
+                  widget.note.title.isEmpty
+                      ? 'Untitled Note'
+                      : widget.note.title,
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     color: Colors.black87,
                   ),
                 ),
           actions: [
-            // ONLY show save button in header when editing and has changes
             if (_isEditing && _hasUnsavedChanges)
               _isSaving
                   ? Container(
@@ -384,7 +403,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ),
         body: Column(
           children: [
-            // Status bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
@@ -413,10 +431,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     ),
                   ),
                   const Spacer(),
-                  // Status indicator
                   if (_isSaving)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.blue.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -447,7 +465,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     )
                   else if (_hasUnsavedChanges && _isEditing)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -475,7 +494,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     )
                   else if (!_isEditing)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -504,19 +524,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 ],
               ),
             ),
-            
-            // Content area
             Expanded(
               child: _isEditing
                   ? _buildEditableContent()
                   : _buildReadOnlyContent(),
             ),
-            
-            // Editing toolbar (only when editing)
             if (_isEditing) _buildEditingToolbar(),
           ],
         ),
-        // NO FLOATING ACTION BUTTON - removed redundant save button
       ),
     );
   }
@@ -524,25 +539,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Widget _buildEditableContent() {
     return Container(
       padding: const EdgeInsets.all(20),
-      child: TextField(
-        controller: _contentController,
+      child: quill.QuillEditor(
+        configurations: quill.QuillEditorConfigurations(
+          controller: _quillController,
+          placeholder: 'Start writing your note...',
+          padding: EdgeInsets.zero,
+          autoFocus: widget.isNewNote,
+          expands: true,
+        ),
         focusNode: _contentFocusNode,
-        maxLines: null,
-        expands: true,
-        style: const TextStyle(
-          fontFamily: 'Poppins',
-          fontSize: 16,
-          height: 1.6,
-        ),
-        decoration: InputDecoration(
-          hintText: 'Start writing your note...',
-          hintStyle: TextStyle(
-            fontFamily: 'Poppins',
-            color: Colors.grey[500],
-          ),
-          border: InputBorder.none,
-          filled: false,
-        ),
+        scrollController: _scrollController,
       ),
     );
   }
@@ -550,64 +556,188 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Widget _buildReadOnlyContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Text(
-        widget.note.content.isEmpty ? 'This note is empty.' : widget.note.content,
-        style: TextStyle(
-          fontFamily: 'Poppins',
-          fontSize: 16,
-          height: 1.6,
-          color: widget.note.content.isEmpty ? Colors.grey[500] : Colors.black87,
+      controller: _scrollController,
+      child: AbsorbPointer(
+        absorbing: true, // Ini akan membuat editor tidak bisa diedit
+        child: quill.QuillEditor(
+          configurations: quill.QuillEditorConfigurations(
+            controller: _quillController,
+            placeholder: 'This note is empty.',
+            padding: EdgeInsets.zero,
+            autoFocus: false,
+            expands: false,
+          ),
+          focusNode: FocusNode(),
+          scrollController: ScrollController(),
         ),
       ),
     );
+  }
+
+  // Fungsi untuk mengecek apakah format tertentu sedang aktif
+  bool _isFormatActive(quill.Attribute attribute) {
+    final currentStyle = _quillController.getSelectionStyle().attributes;
+    return currentStyle[attribute.key] != null;
+  }
+
+  // Fungsi untuk mengecek apakah list tertentu sedang aktif
+  bool _isListActive(quill.Attribute attribute) {
+    final currentStyle = _quillController.getSelectionStyle().attributes;
+    final currentListType = currentStyle['list'];
+    return currentListType == attribute.value;
   }
 
   Widget _buildEditingToolbar() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.black87,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.purple[100]!,
+            Colors.purple[50]!,
+          ],
+        ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.purple.withOpacity(0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.purple.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildToolbarButton(Icons.format_bold, 'Bold'),
-          _buildToolbarButton(Icons.format_italic, 'Italic'),
-          _buildToolbarButton(Icons.format_underline, 'Underline'),
-          _buildToolbarButton(Icons.format_list_bulleted, 'Bullet List'),
-          _buildToolbarButton(Icons.format_list_numbered, 'Number List'),
-          _buildToolbarButton(Icons.check_box, 'Checkbox'),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildToolbarButton(
+              Icons.format_bold,
+              'Bold',
+              () => _toggleFormat(quill.Attribute.bold),
+              isActive: _isFormatActive(quill.Attribute.bold),
+            ),
+            const SizedBox(width: 4),
+            _buildToolbarButton(
+              Icons.format_italic,
+              'Italic',
+              () => _toggleFormat(quill.Attribute.italic),
+              isActive: _isFormatActive(quill.Attribute.italic),
+            ),
+            const SizedBox(width: 4),
+            _buildToolbarButton(
+              Icons.format_underline,
+              'Underline',
+              () => _toggleFormat(quill.Attribute.underline),
+              isActive: _isFormatActive(quill.Attribute.underline),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 1,
+              height: 24,
+              color: Colors.purple.withOpacity(0.3),
+            ),
+            const SizedBox(width: 8),
+            _buildToolbarButton(
+              Icons.format_list_bulleted,
+              'Bullet List',
+              () => _toggleList(quill.Attribute.ul),
+              isActive: _isListActive(quill.Attribute.ul),
+            ),
+            const SizedBox(width: 4),
+            _buildToolbarButton(
+              Icons.format_list_numbered,
+              'Numbered List',
+              () => _toggleList(quill.Attribute.ol),
+              isActive: _isListActive(quill.Attribute.ol),
+            ),
+            const SizedBox(width: 4),
+            _buildToolbarButton(
+              Icons.checklist,
+              'Checklist',
+              () => _toggleList(quill.Attribute.unchecked),
+              isActive: _isListActive(quill.Attribute.unchecked),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildToolbarButton(IconData icon, String tooltip) {
+  Widget _buildToolbarButton(
+    IconData icon, 
+    String tooltip, 
+    VoidCallback onTap, {
+    bool isActive = false,
+  }) {
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        onTap: () {
-          // TODO: Implement formatting functionality
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 20,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isActive 
+                  ? Colors.purple.withOpacity(0.8)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: isActive 
+                  ? Border.all(color: Colors.purple, width: 1.5)
+                  : null,
+              boxShadow: isActive 
+                  ? [
+                      BoxShadow(
+                        color: Colors.purple.withOpacity(0.3),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              icon,
+              color: isActive 
+                  ? Colors.white 
+                  : Colors.purple[700],
+              size: 20,
+            ),
           ),
         ),
       ),
     );
+  }
+
+  void _toggleFormat(quill.Attribute attribute) {
+    final currentStyle = _quillController.getSelectionStyle().attributes;
+    if (currentStyle[attribute.key] != null) {
+      _quillController.formatSelection(quill.Attribute.clone(attribute, null));
+    } else {
+      _quillController.formatSelection(attribute);
+    }
+    // Trigger rebuild untuk update visual feedback
+    setState(() {});
+  }
+
+  void _toggleList(quill.Attribute attribute) {
+    final currentStyle = _quillController.getSelectionStyle().attributes;
+    final currentListType = currentStyle['list'];
+
+    if (currentListType == attribute.value) {
+      _quillController.formatSelection(quill.Attribute.clone(attribute, null));
+    } else {
+      _quillController.formatSelection(attribute);
+    }
+    // Trigger rebuild untuk update visual feedback
+    setState(() {});
   }
 }
