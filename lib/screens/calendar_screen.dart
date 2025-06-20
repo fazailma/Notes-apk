@@ -22,12 +22,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
   List<Event> _allEvents = [];
   bool _isLoading = true;
   String? _errorMessage;
+  
+  // Search functionality
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  List<Event> _searchResults = [];
+  bool _isSearchLoading = false;
+  final FocusNode _searchFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
     _loadEvents();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _loadEvents() async {
@@ -65,14 +79,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     Map<DateTime, List<Event>> groupedEvents = {};
     
     for (Event event in events) {
-      // Normalize tanggal (hilangkan jam, menit, detik)
       DateTime eventDate = DateTime(
         event.startDate.year,
         event.startDate.month,
         event.startDate.day,
       );
       
-      // Jika event lebih dari 1 hari, tambahkan ke setiap hari
       DateTime currentDate = eventDate;
       DateTime endDate = DateTime(
         event.endDate.year,
@@ -106,7 +118,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
     
     if (result == true) {
-      // Reload events jika ada event baru yang ditambahkan
       _loadEvents();
     }
   }
@@ -120,89 +131,483 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
     
     if (result == true) {
-      // Reload events jika ada perubahan
       _loadEvents();
+    }
+  }
+
+  void _performSearch(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearchLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchLoading = true;
+    });
+
+    final filteredEvents = _allEvents.where((event) {
+      final title = event.title.toLowerCase();
+      final description = (event.description ?? '').toLowerCase();
+      final location = (event.location ?? '').toLowerCase();
+      final searchQuery = query.toLowerCase();
+      
+      return title.contains(searchQuery) || 
+             description.contains(searchQuery) || 
+             location.contains(searchQuery);
+    }).toList();
+
+    setState(() {
+      _searchResults = filteredEvents;
+      _isSearchLoading = false;
+    });
+  }
+
+  String _formatSearchDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    if (difference.inDays == 0) {
+      return 'Hari ini';
+    } else if (difference.inDays == 1) {
+      return 'Kemarin';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} hari lalu';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text(
-          'Calendar',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            colors: [Colors.purple[300]!, Colors.purple[400]!],
+          ).createShader(bounds),
+          child: const Text(
+            'Calendar',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
         ),
         centerTitle: false,
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.purple[50]!.withOpacity(0.2),
+                Colors.grey[50]!,
+              ],
+            ),
+          ),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, size: 24),
-            onPressed: _loadEvents,
-          ),
-          IconButton(
-            icon: const Icon(Icons.search, size: 24),
-            onPressed: () {
-              // TODO: Implement search functionality
-            },
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? _buildErrorWidget()
-              : SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    children: [
-                      _buildCalendar(),
-                      const SizedBox(height: 16),
-                      _buildEventsList(),
+          if (_isSearching) ...[
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.only(left: 16, right: 8, top: 8, bottom: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      Colors.purple[50]!.withOpacity(0.3),
                     ],
                   ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.purple[200]!.withOpacity(0.5),
+                    width: 1,
+                  ),
                 ),
-      // HAPUS FloatingActionButton
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  decoration: InputDecoration(
+                    hintText: 'Cari acara...',
+                    hintStyle: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: Colors.grey[500],
+                      fontSize: 14,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = false;
+                          _searchResults = [];
+                        });
+                        _searchController.clear();
+                        _searchFocusNode.unfocus();
+                      },
+                    ),
+                  ),
+                  onChanged: _performSearch,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[50]!,
+                    Colors.purple[100]!.withOpacity(0.5),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple[100]!.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.search, size: 24),
+                color: Colors.purple[400],
+                onPressed: () {
+                  setState(() {
+                    _isSearching = true;
+                  });
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _searchFocusNode.requestFocus();
+                  });
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.purple[50]!.withOpacity(0.2),
+              Colors.grey[50]!,
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            _isLoading
+                ? Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.purple[50]!,
+                            Colors.purple[100]!.withOpacity(0.3),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: CircularProgressIndicator(
+                        color: Colors.purple[300],
+                        strokeWidth: 3,
+                      ),
+                    ),
+                  )
+                : _errorMessage != null
+                    ? _buildErrorWidget()
+                    : SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          children: [
+                            _buildCalendar(),
+                            const SizedBox(height: 16),
+                            _buildEventsList(),
+                          ],
+                        ),
+                      ),
+            
+            if (_isSearching && (_searchController.text.isNotEmpty || _isSearchLoading))
+              Positioned(
+                top: 0,
+                left: 16,
+                right: 16,
+                child: Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white,
+                        Colors.purple[50]!.withOpacity(0.2),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.purple[100]!.withOpacity(0.5),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple[100]!.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: _buildSearchResults(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_isSearchLoading) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: Colors.purple[300],
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    if (_searchController.text.isNotEmpty && _searchResults.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 48,
+              color: Colors.purple[300],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tidak ada acara ditemukan',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+            Text(
+              'Coba kata kunci lain',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 300),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _searchResults.length,
+        separatorBuilder: (context, index) => Divider(
+          height: 1,
+          color: Colors.purple[100]!.withOpacity(0.3),
+        ),
+        itemBuilder: (context, index) {
+          final event = _searchResults[index];
+          return ListTile(
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    event.colorValue.withOpacity(0.3),
+                    event.colorValue.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.event,
+                color: event.colorValue,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              event.title,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (event.description != null && event.description!.isNotEmpty)
+                  Text(
+                    event.description!,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatSearchDate(event.startDate),
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+            onTap: () {
+              setState(() {
+                _isSearching = false;
+                _searchResults = [];
+              });
+              _searchController.clear();
+              _searchFocusNode.unfocus();
+              _navigateToEventDetail(event);
+            },
+          );
+        },
+      ),
     );
   }
 
   Widget _buildErrorWidget() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.grey.shade400,
+      child: Container(
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              Colors.purple[50]!.withOpacity(0.2),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Gagal memuat acara',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.purple[100]!.withOpacity(0.3),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple[100]!.withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _errorMessage ?? 'Terjadi kesalahan',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade600,
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.purple[300],
             ),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _loadEvents,
-            child: const Text('Coba Lagi'),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              'Gagal memuat acara',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'Terjadi kesalahan',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[200]!,
+                    Colors.purple[300]!,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ElevatedButton(
+                onPressed: _loadEvents,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Coba Lagi',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -211,14 +616,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Colors.purple[50]!.withOpacity(0.2),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.purple[100]!.withOpacity(0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
+            color: Colors.purple[100]!.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -247,32 +662,72 @@ class _CalendarScreenState extends State<CalendarScreen> {
         },
         calendarStyle: CalendarStyle(
           markersMaxCount: 3,
-          markerDecoration: const BoxDecoration(
-            color: Colors.blue,
+          markerDecoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.purple[300]!, Colors.purple[400]!],
+            ),
             shape: BoxShape.circle,
           ),
           todayDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+            gradient: LinearGradient(
+              colors: [Colors.purple[200]!, Colors.purple[300]!],
+            ),
             shape: BoxShape.circle,
           ),
           selectedDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
+            gradient: LinearGradient(
+              colors: [Colors.purple[300]!, Colors.purple[400]!],
+            ),
             shape: BoxShape.circle,
           ),
-          weekendTextStyle: const TextStyle(
-            color: Colors.red,
+          weekendTextStyle: TextStyle(
+            color: Colors.purple[400],
+            fontFamily: 'Poppins',
           ),
           outsideDaysVisible: false,
+          defaultTextStyle: const TextStyle(
+            fontFamily: 'Poppins',
+          ),
         ),
         headerStyle: HeaderStyle(
           formatButtonVisible: true,
           titleCentered: true,
+          titleTextStyle: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
+          ),
           formatButtonDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            gradient: LinearGradient(
+              colors: [Colors.purple[100]!, Colors.purple[200]!],
+            ),
             borderRadius: BorderRadius.circular(12),
           ),
-          formatButtonTextStyle: TextStyle(
-            color: Theme.of(context).colorScheme.primary,
+          formatButtonTextStyle: const TextStyle(
+            color: Colors.white,
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.w500,
+          ),
+          leftChevronIcon: Icon(
+            Icons.chevron_left,
+            color: Colors.purple[400],
+          ),
+          rightChevronIcon: Icon(
+            Icons.chevron_right,
+            color: Colors.purple[400],
+          ),
+        ),
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+          weekendStyle: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.w600,
+            color: Colors.purple[400],
           ),
         ),
         calendarBuilders: CalendarBuilders(
@@ -282,8 +737,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 right: 1,
                 bottom: 1,
                 child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.purple[300]!, Colors.purple[400]!],
+                    ),
                     shape: BoxShape.circle,
                   ),
                   width: 16,
@@ -295,6 +752,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
+                        fontFamily: 'Poppins',
                       ),
                     ),
                   ),
@@ -313,14 +771,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
     
     return Container(
       padding: const EdgeInsets.all(16),
-      // UBAH: Gunakan tinggi minimum untuk events list
       constraints: BoxConstraints(
-        minHeight: MediaQuery.of(context).size.height * 0.4, // Minimal 40% dari tinggi layar
+        minHeight: MediaQuery.of(context).size.height * 0.4,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Header dengan tombol + tanpa background
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -328,27 +786,51 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 _selectedDay != null
                     ? 'Acara ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}'
                     : 'Pilih tanggal untuk melihat acara',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[800],
                 ),
               ),
-              if (_selectedDay != null)
-                TextButton.icon(
-                  onPressed: _navigateToAddEvent,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Tambah'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
+              // Tombol + tanpa background, hanya icon ungu
+              IconButton(
+                icon: Icon(
+                  Icons.add,
+                  color: Colors.purple[400],
+                  size: 28,
                 ),
+                onPressed: _navigateToAddEvent,
+                tooltip: 'Tambah Acara',
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          // UBAH: Gunakan ListView tanpa Expanded karena sudah dalam SingleChildScrollView
           events.isEmpty
               ? Container(
                   height: 200,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white,
+                        Colors.purple[50]!.withOpacity(0.2),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.purple[100]!.withOpacity(0.3),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple[100]!.withOpacity(0.2),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -356,123 +838,164 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         Icon(
                           Icons.event_busy,
                           size: 48,
-                          color: Colors.grey.shade400,
+                          color: Colors.purple[300],
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'Tidak ada acara untuk hari ini',
                           style: TextStyle(
+                            fontFamily: 'Poppins',
                             fontSize: 16,
-                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[600],
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton.icon(
-                          onPressed: _navigateToAddEvent,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Tambah Acara'),
                         ),
                       ],
                     ),
                   ),
                 )
               : ListView.builder(
-                  shrinkWrap: true, // PENTING: Agar ListView tidak mengambil ruang tak terbatas
-                  physics: const NeverScrollableScrollPhysics(), // Disable scroll di ListView karena parent sudah scrollable
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: events.length,
                   itemBuilder: (context, index) {
                     final event = events[index];
-                    return Card(
+                    return Container(
                       margin: const EdgeInsets.only(bottom: 12),
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white,
+                            event.colorValue.withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: event.colorValue.withOpacity(0.3),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: event.colorValue.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: InkWell(
                         onTap: () => _navigateToEventDetail(event),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: event.colorValue.withOpacity(0.3),
-                              width: 2,
-                            ),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            leading: Container(
-                              width: 4,
-                              height: double.infinity,
-                              decoration: BoxDecoration(
-                                color: event.colorValue,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            title: Text(
-                              event.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (event.description != null && event.description!.isNotEmpty)
-                                  Text(
-                                    event.description!,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 4,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      event.colorValue,
+                                      event.colorValue.withOpacity(0.7),
+                                    ],
                                   ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.access_time,
-                                      size: 14,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      event.formattedTime,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                                if (event.location != null && event.location!.isNotEmpty)
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.location_on,
-                                        size: 14,
-                                        color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      event.title,
+                                      style: const TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Text(
-                                          event.location!,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (event.description != null && event.description!.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        event.description!,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
+                                          color: Colors.grey[600],
                                         ),
                                       ),
                                     ],
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.access_time,
+                                          size: 14,
+                                          color: Colors.grey[600],
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          event.formattedTime,
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (event.location != null && event.location!.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.location_on,
+                                            size: 14,
+                                            color: Colors.grey[600],
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              event.location!,
+                                              style: TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      event.colorValue.withOpacity(0.1),
+                                      event.colorValue.withOpacity(0.05),
+                                    ],
                                   ),
-                              ],
-                            ),
-                            trailing: Icon(
-                              Icons.chevron_right,
-                              color: Colors.grey.shade400,
-                            ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.chevron_right,
+                                  color: event.colorValue,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

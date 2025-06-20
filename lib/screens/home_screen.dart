@@ -53,10 +53,10 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // Parse JSON content
       final contentJson = jsonDecode(jsonContent);
-      
+
       // Buat dokumen Quill dari JSON
       final document = quill.Document.fromJson(contentJson);
-      
+
       // Ekstrak teks biasa
       return document.toPlainText();
     } catch (e) {
@@ -221,12 +221,19 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.1),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[50]!,
+                    Colors.purple[100]!.withOpacity(0.5),
+                  ],
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 Icons.create_new_folder,
-                color: Colors.purple,
+                color: Colors.purple[400],
                 size: 24,
               ),
             ),
@@ -281,10 +288,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: folder.color.withOpacity(0.1),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            folder.color.withOpacity(0.08),
+                            Colors.white,
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: folder.color.withOpacity(0.3),
+                          color: folder.color.withOpacity(0.2),
                           width: 1,
                         ),
                       ),
@@ -296,7 +310,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: folder.color.withOpacity(0.2),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                folder.color.withOpacity(0.2),
+                                folder.color.withOpacity(0.05),
+                              ],
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -340,27 +361,41 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           if (_folders.isEmpty)
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _showCreateFolderDialog();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[200]!,
+                    Colors.purple[300]!,
+                  ],
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text(
-                'Create Folder',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w500,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showCreateFolderDialog();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Create Folder',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -435,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[50],
       body: _currentIndex == 0
           ? _buildHomeContent()
           : _currentIndex == 1
@@ -446,17 +481,25 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.purple[200]!,
+              Colors.purple[300]!,
+            ],
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.purple.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: Colors.purple[200]!.withOpacity(0.5),
+              blurRadius: 15,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: FloatingActionButton(
           onPressed: _createNewNote,
-          backgroundColor: Colors.purple,
+          backgroundColor: Colors.transparent,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -475,11 +518,19 @@ class _HomeScreenState extends State<HomeScreen> {
         color: Colors.white,
         child: Container(
           decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white,
+                Colors.purple[50]!.withOpacity(0.2),
+              ],
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
+                color: Colors.purple[100]!.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, -5),
               ),
             ],
           ),
@@ -505,13 +556,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = _currentIndex == index;
     return Container(
       decoration: BoxDecoration(
-        color: isSelected ? Colors.purple.withOpacity(0.1) : Colors.transparent,
+        gradient: isSelected
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.purple[50]!,
+                  Colors.purple[100]!.withOpacity(0.3),
+                ],
+              )
+            : null,
         borderRadius: BorderRadius.circular(12),
       ),
       child: IconButton(
         icon: Icon(
           icon,
-          color: isSelected ? Colors.purple : Colors.grey,
+          color: isSelected ? Colors.purple[400] : Colors.grey,
           size: 24,
         ),
         onPressed: () => setState(() => _currentIndex = index),
@@ -521,32 +581,59 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHomeContent() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: Colors.purple,
+      return Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.purple[50]!,
+                Colors.purple[100]!.withOpacity(0.3),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: CircularProgressIndicator(
+            color: Colors.purple[300],
+            strokeWidth: 3,
+          ),
         ),
       );
     }
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height -
-                kToolbarHeight -
-                kBottomNavigationBarHeight -
-                16, // Adjust for status bar, FAB, and padding
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 8),
-              _buildFolderSection(),
-              const SizedBox(height: 24),
-              _buildRecentNotesSection(),
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.purple[50]!.withOpacity(0.2),
+            Colors.grey[50]!,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  kToolbarHeight -
+                  kBottomNavigationBarHeight -
+                  16,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 8),
+                _buildFolderSection(),
+                const SizedBox(height: 24),
+                _buildRecentNotesSection(),
+              ],
+            ),
           ),
         ),
       ),
@@ -564,24 +651,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.purple.withOpacity(0.1),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.purple[50]!,
+                        Colors.purple[100]!.withOpacity(0.5),
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple[100]!.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     Icons.edit,
-                    color: Colors.purple,
+                    color: Colors.purple[400],
                     size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'MEMORA',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple,
-                    letterSpacing: 1.2,
+                ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [Colors.purple[300]!, Colors.purple[400]!],
+                  ).createShader(bounds),
+                  child: const Text(
+                    'MEMORA',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                    ),
                   ),
                 ),
               ],
@@ -592,12 +698,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.only(left: 16.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey[50],
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white,
+                              Colors.purple[50]!.withOpacity(0.3),
+                            ],
+                          ),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.purple.withOpacity(0.2),
+                            color: Colors.purple[200]!.withOpacity(0.5),
                             width: 1,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.purple[100]!.withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: TextField(
                           controller: _searchController,
@@ -630,12 +750,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 : Container(
                     decoration: BoxDecoration(
-                      color: Colors.purple.withOpacity(0.1),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.purple[50]!,
+                          Colors.purple[100]!.withOpacity(0.5),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple[100]!.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.search, size: 24),
-                      color: Colors.purple,
+                      color: Colors.purple[400],
                       onPressed: () {
                         setState(() {
                           _isSearching = true;
@@ -653,15 +787,22 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             margin: const EdgeInsets.only(top: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  Colors.purple[50]!.withOpacity(0.2),
+                ],
+              ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Colors.purple.withOpacity(0.1),
+                color: Colors.purple[100]!.withOpacity(0.5),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.purple[100]!.withOpacity(0.2),
                   blurRadius: 20,
                   offset: const Offset(0, 4),
                 ),
@@ -677,9 +818,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_isSearchLoading) {
       return Container(
         padding: const EdgeInsets.all(20),
-        child: const Center(
+        child: Center(
           child: CircularProgressIndicator(
-            color: Colors.purple,
+            color: Colors.purple[300],
             strokeWidth: 2,
           ),
         ),
@@ -725,19 +866,26 @@ class _HomeScreenState extends State<HomeScreen> {
         itemCount: _searchResults.length,
         separatorBuilder: (context, index) => Divider(
           height: 1,
-          color: Colors.grey[200],
+          color: Colors.purple[100]!.withOpacity(0.3),
         ),
         itemBuilder: (context, index) {
           final note = _searchResults[index];
-          // Ekstrak teks biasa untuk search results juga
-          final plainTextContent = _extractPlainTextFromQuillContent(note.content);
-          
+          final plainTextContent =
+              _extractPlainTextFromQuillContent(note.content);
+
           return ListTile(
             leading: Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _getNoteColor(index).withOpacity(0.3),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _getNoteColor(index).withOpacity(0.3),
+                    _getNoteColor(index).withOpacity(0.1),
+                  ],
+                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -834,12 +982,26 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.grey[50],
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                Colors.purple[50]!.withOpacity(0.2),
+              ],
+            ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: Colors.purple.withOpacity(0.1),
+              color: Colors.purple[100]!.withOpacity(0.3),
               width: 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.purple[100]!.withOpacity(0.2),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
           child: Column(
             children: [
@@ -857,12 +1019,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.purple.withOpacity(0.1),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.purple[50]!,
+                          Colors.purple[100]!.withOpacity(0.5),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple[100]!.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.add, size: 24),
-                      color: Colors.purple,
+                      color: Colors.purple[400],
                       onPressed: _showCreateFolderDialog,
                       tooltip: 'Create new folder',
                     ),
@@ -921,7 +1097,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 1.4, // Changed from 2.0 to 1.8 to give more height
+        childAspectRatio: 1.4,
       ),
       itemCount: _folders.length,
       itemBuilder: (context, index) {
@@ -934,308 +1110,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showEditFolderDialog(Folder folder) {
-    final nameController = TextEditingController(text: folder.name);
-    String selectedColor = _getColorCode(folder.color);
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.edit, color: Colors.purple, size: 24),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Edit Folder',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.purple.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: TextField(
-                  controller: nameController,
-                  style: const TextStyle(fontFamily: 'Poppins'),
-                  decoration: InputDecoration(
-                    labelText: 'Folder Name',
-                    labelStyle: TextStyle(
-                      fontFamily: 'Poppins',
-                      color: Colors.purple,
-                    ),
-                    hintText: 'Enter folder name',
-                    hintStyle: TextStyle(
-                      fontFamily: 'Poppins',
-                      color: Colors.grey[500],
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Text(
-                    'Color: ',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Wrap(
-                      spacing: 12,
-                      children: [
-                        _colorOption(Colors.purple, '9C27B0', selectedColor,
-                            (color) => setState(() => selectedColor = color)),
-                        _colorOption(Colors.blue, '1565C0', selectedColor,
-                            (color) => setState(() => selectedColor = color)),
-                        _colorOption(Colors.red, 'C62828', selectedColor,
-                            (color) => setState(() => selectedColor = color)),
-                        _colorOption(Colors.green, '2E7D32', selectedColor,
-                            (color) => setState(() => selectedColor = color)),
-                        _colorOption(Colors.orange, 'EF6C00', selectedColor,
-                            (color) => setState(() => selectedColor = color)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: Colors.grey[600],
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter folder name')),
-                  );
-                  return;
-                }
-
-                try {
-                  print('Updating folder: ${folder.id}');
-                  print('New name: ${nameController.text.trim()}');
-                  print('New color: $selectedColor');
-                  try {
-                    await _pbService.updateFolderDirect(
-                      folder.id,
-                      nameController.text.trim(),
-                      selectedColor,
-                      'folder',
-                    );
-                  } catch (directError) {
-                    print(
-                        'Direct method failed, trying SDK method: $directError');
-                    await _pbService.updateFolder(
-                      folder.id,
-                      nameController.text.trim(),
-                      selectedColor,
-                      'folder',
-                    );
-                  }
-
-                  Navigator.pop(context);
-                  await _loadData();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Folder updated successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } catch (e) {
-                  print('Error updating folder: $e');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to update folder: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-              ),
-              child: const Text(
-                'Update',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDeleteFolderDialog(Folder folder) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.warning, color: Colors.red, size: 24),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Delete Folder',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Are you sure you want to delete "${folder.name}"?',
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This action cannot be undone and will delete all notes in this folder.',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                print('Deleting folder: ${folder.id}');
-                try {
-                  await _pbService.deleteFolderDirect(folder.id);
-                } catch (directError) {
-                  print(
-                      'Direct method failed, trying SDK method: $directError');
-                  await _pbService.deleteFolder(folder.id);
-                }
-                Navigator.pop(context);
-                await _loadData();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Folder deleted successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } catch (e) {
-                print('Error deleting folder: $e');
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to delete folder: ${e.toString()}'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
-              ),
-            ),
-            child: const Text(
-              'Delete',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getColorCode(Color color) {
-    if (color == Colors.purple) return '9C27B0';
-    if (color == Colors.blue) return '1565C0';
-    if (color == Colors.red) return 'C62828';
-    if (color == Colors.green) return '2E7D32';
-    if (color == Colors.orange) return 'EF6C00';
-    return '9C27B0';
-  }
-
   Widget _buildFolderItem({
     required Folder folder,
   }) {
@@ -1246,7 +1120,7 @@ class _HomeScreenState extends State<HomeScreen> {
           end: Alignment.bottomRight,
           colors: [
             folder.color.withOpacity(0.1),
-            folder.color.withOpacity(0.05),
+            Colors.white,
           ],
         ),
         borderRadius: BorderRadius.circular(20),
@@ -1256,9 +1130,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: folder.color.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: folder.color.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -1276,7 +1150,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: folder.color.withOpacity(0.2),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              folder.color.withOpacity(0.2),
+                              folder.color.withOpacity(0.05),
+                            ],
+                          ),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
@@ -1322,12 +1203,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white,
+                        Colors.purple[50]!.withOpacity(0.3),
+                      ],
+                    ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
+                        color: Colors.purple[100]!.withOpacity(0.3),
+                        blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -1349,11 +1237,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showFolderOptionsMenu(BuildContext context, Folder folder) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white,
+              Colors.purple[50]!.withOpacity(0.1),
+            ],
+          ),
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
@@ -1366,7 +1261,7 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: Colors.purple[200],
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1378,7 +1273,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: folder.color.withOpacity(0.15),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          folder.color.withOpacity(0.2),
+                          folder.color.withOpacity(0.05),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Icon(
@@ -1418,7 +1320,14 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[50]!.withOpacity(0.3),
+                    Colors.white,
+                  ],
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -1427,12 +1336,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.blue[50],
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.blue[100]!,
+                            Colors.blue[50]!,
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         Icons.edit,
-                        color: Colors.blue[600],
+                        color: Colors.blue[400],
                         size: 20,
                       ),
                     ),
@@ -1452,17 +1368,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       _showEditFolderDialog(folder);
                     },
                   ),
-                  Divider(height: 1, color: Colors.grey[200]),
+                  Divider(
+                      height: 1, color: Colors.purple[100]!.withOpacity(0.3)),
                   ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.red[50],
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.red[100]!,
+                            Colors.red[50]!,
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         Icons.delete,
-                        color: Colors.red[600],
+                        color: Colors.red[400],
                         size: 20,
                       ),
                     ),
@@ -1492,9 +1416,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showCreateFolderDialog() {
-    final nameController = TextEditingController();
-    String selectedColor = '9C27B0';
+  void _showEditFolderDialog(Folder folder) {
+    final nameController = TextEditingController(text: folder.name);
+    String selectedColor = _getColorCode(folder.color);
 
     showDialog(
       context: context,
@@ -1508,15 +1432,21 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.1),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.purple[50]!,
+                      Colors.purple[100]!.withOpacity(0.5),
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.create_new_folder,
-                    color: Colors.purple, size: 24),
+                child: Icon(Icons.edit, color: Colors.purple[400], size: 24),
               ),
               const SizedBox(width: 12),
               const Text(
-                'Create New Folder',
+                'Edit Folder',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w600,
@@ -1529,10 +1459,17 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.purple[50]!.withOpacity(0.3),
+                      Colors.white,
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.purple.withOpacity(0.2),
+                    color: Colors.purple[100]!.withOpacity(0.5),
                     width: 1,
                   ),
                 ),
@@ -1543,7 +1480,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     labelText: 'Folder Name',
                     labelStyle: TextStyle(
                       fontFamily: 'Poppins',
-                      color: Colors.purple,
+                      color: Colors.purple[400],
                     ),
                     hintText: 'Enter folder name',
                     hintStyle: TextStyle(
@@ -1599,99 +1536,207 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter folder name')),
-                  );
-                  return;
-                }
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[200]!,
+                    Colors.purple[300]!,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ElevatedButton(
+                onPressed: () async {
+                  if (nameController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter folder name')),
+                    );
+                    return;
+                  }
 
+                  try {
+                    print('Updating folder: ${folder.id}');
+                    print('New name: ${nameController.text.trim()}');
+                    print('New color: $selectedColor');
+                    try {
+                      await _pbService.updateFolderDirect(
+                        folder.id,
+                        nameController.text.trim(),
+                        selectedColor,
+                        'folder',
+                      );
+                    } catch (directError) {
+                      print(
+                          'Direct method failed, trying SDK method: $directError');
+                      await _pbService.updateFolder(
+                        folder.id,
+                        nameController.text.trim(),
+                        selectedColor,
+                        'folder',
+                      );
+                    }
+
+                    Navigator.pop(context);
+                    await _loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Folder updated successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } catch (e) {
+                    print('Error updating folder: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text('Failed to update folder: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Update',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteFolderDialog(Folder folder) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.red[100]!,
+                    Colors.red[50]!,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.warning, color: Colors.red[400], size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Delete Folder',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Are you sure you want to delete "${folder.name}"?',
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This action cannot be undone and will delete all notes in this folder.',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.red[300]!,
+                  Colors.red[400]!,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ElevatedButton(
+              onPressed: () async {
                 try {
-                  print(
-                      'Creating folder with name: ${nameController.text.trim()}');
-                  print('Creating folder with color: $selectedColor');
-                  final newFolder = await _pbService.createFolder(
-                    nameController.text.trim(),
-                    selectedColor,
-                    'folder',
-                  );
-                  print('Folder created successfully: ${newFolder.id}');
+                  print('Deleting folder: ${folder.id}');
+                  try {
+                    await _pbService.deleteFolderDirect(folder.id);
+                  } catch (directError) {
+                    print(
+                        'Direct method failed, trying SDK method: $directError');
+                    await _pbService.deleteFolder(folder.id);
+                  }
                   Navigator.pop(context);
                   await _loadData();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Folder created successfully'),
+                      content: Text('Folder deleted successfully'),
                       backgroundColor: Colors.green,
                     ),
                   );
-                  final createNote = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      title: const Text(
-                        'Folder Created',
-                        style: TextStyle(fontFamily: 'Poppins'),
-                      ),
-                      content: Text(
-                        'Do you want to create a note in "${nameController.text.trim()}"?',
-                        style: const TextStyle(fontFamily: 'Poppins'),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text(
-                            'No',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.purple,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            'Yes',
-                            style: TextStyle(fontFamily: 'Poppins'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (createNote == true) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => NotesScreen(
-                          folderId: newFolder.id,
-                          shouldCreateNewNote: true,
-                        ),
-                      ),
-                    ).then((_) => _loadData());
-                  }
                 } catch (e) {
-                  print('Error creating folder: $e');
+                  print('Error deleting folder: $e');
+                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Failed to create folder: ${e.toString()}'),
+                      content: Text('Failed to delete folder: ${e.toString()}'),
                       backgroundColor: Colors.red,
                     ),
                   );
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
+                backgroundColor: Colors.transparent,
                 foregroundColor: Colors.white,
+                shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1701,10 +1746,284 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               child: const Text(
-                'Create',
+                'Delete',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getColorCode(Color color) {
+    if (color == Colors.purple) return '9C27B0';
+    if (color == Colors.blue) return '1565C0';
+    if (color == Colors.red) return 'C62828';
+    if (color == Colors.green) return '2E7D32';
+    if (color == Colors.orange) return 'EF6C00';
+    return '9C27B0';
+  }
+
+  void _showCreateFolderDialog() {
+    final nameController = TextEditingController();
+    String selectedColor = '9C27B0';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.purple[50]!,
+                      Colors.purple[100]!.withOpacity(0.5),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.create_new_folder,
+                    color: Colors.purple[400], size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Create New Folder',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.purple[50]!.withOpacity(0.3),
+                      Colors.white,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.purple[100]!.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: TextField(
+                  controller: nameController,
+                  style: const TextStyle(fontFamily: 'Poppins'),
+                  decoration: InputDecoration(
+                    labelText: 'Folder Name',
+                    labelStyle: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: Colors.purple[400],
+                    ),
+                    hintText: 'Enter folder name',
+                    hintStyle: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: Colors.grey[500],
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Text(
+                    'Color: ',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 12,
+                      children: [
+                        _colorOption(Colors.purple, '9C27B0', selectedColor,
+                            (color) => setState(() => selectedColor = color)),
+                        _colorOption(Colors.blue, '1565C0', selectedColor,
+                            (color) => setState(() => selectedColor = color)),
+                        _colorOption(Colors.red, 'C62828', selectedColor,
+                            (color) => setState(() => selectedColor = color)),
+                        _colorOption(Colors.green, '2E7D32', selectedColor,
+                            (color) => setState(() => selectedColor = color)),
+                        _colorOption(Colors.orange, 'EF6C00', selectedColor,
+                            (color) => setState(() => selectedColor = color)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[200]!,
+                    Colors.purple[300]!,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ElevatedButton(
+                onPressed: () async {
+                  if (nameController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter folder name')),
+                    );
+                    return;
+                  }
+
+                  try {
+                    print(
+                        'Creating folder with name: ${nameController.text.trim()}');
+                    print('Creating folder with color: $selectedColor');
+                    final newFolder = await _pbService.createFolder(
+                      nameController.text.trim(),
+                      selectedColor,
+                      'folder',
+                    );
+                    print('Folder created successfully: ${newFolder.id}');
+                    Navigator.pop(context);
+                    await _loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Folder created successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    final createNote = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        title: const Text(
+                          'Folder Created',
+                          style: TextStyle(fontFamily: 'Poppins'),
+                        ),
+                        content: Text(
+                          'Do you want to create a note in "${nameController.text.trim()}"?',
+                          style: const TextStyle(fontFamily: 'Poppins'),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text(
+                              'No',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.purple[200]!,
+                                  Colors.purple[300]!,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Yes',
+                                style: TextStyle(fontFamily: 'Poppins'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (createNote == true) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NotesScreen(
+                            folderId: newFolder.id,
+                            shouldCreateNewNote: true,
+                          ),
+                        ),
+                      ).then((_) => _loadData());
+                    }
+                  } catch (e) {
+                    print('Error creating folder: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text('Failed to create folder: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Create',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -1723,7 +2042,14 @@ class _HomeScreenState extends State<HomeScreen> {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: color,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.8),
+              color.withOpacity(0.6),
+            ],
+          ),
           shape: BoxShape.circle,
           border: Border.all(
             color: isSelected ? Colors.white : Colors.transparent,
@@ -1732,7 +2058,7 @@ class _HomeScreenState extends State<HomeScreen> {
           boxShadow: [
             BoxShadow(
               color: color.withOpacity(isSelected ? 0.4 : 0.2),
-              blurRadius: isSelected ? 8 : 4,
+              blurRadius: isSelected ? 12 : 6,
               spreadRadius: isSelected ? 2 : 0,
             ),
           ],
@@ -1766,7 +2092,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Container(
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.1),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.purple[50]!,
+                    Colors.purple[100]!.withOpacity(0.5),
+                  ],
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: TextButton(
@@ -1782,7 +2115,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   'View All',
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    color: Colors.purple,
+                    color: Colors.purple[400],
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1795,12 +2128,26 @@ class _HomeScreenState extends State<HomeScreen> {
             ? Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      Colors.purple[50]!.withOpacity(0.2),
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.purple.withOpacity(0.1),
+                    color: Colors.purple[100]!.withOpacity(0.3),
                     width: 1,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple[100]!.withOpacity(0.2),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
@@ -1866,26 +2213,18 @@ class _HomeScreenState extends State<HomeScreen> {
     required int index,
   }) {
     final Color backgroundColor = _getNoteColor(index);
-    final Color textColor = index == 3 ? Colors.white : Colors.black87;
-    
-    // Ekstrak teks biasa dari konten Quill untuk Recent Notes
+    final Color textColor = Colors.grey[800]!;
+
     final plainTextContent = _extractPlainTextFromQuillContent(note.content);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            backgroundColor,
-            backgroundColor.withOpacity(0.8),
-          ],
-        ),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: backgroundColor.withOpacity(0.3),
+            color: Colors.grey[300]!.withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -1899,7 +2238,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.7),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -1914,7 +2253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 10,
-                  color: textColor.withOpacity(0.7),
+                  color: textColor.withOpacity(0.6),
                 ),
               ),
             ],
@@ -1934,11 +2273,11 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: Text(
-              plainTextContent, // Menggunakan teks biasa yang diekstrak
+              plainTextContent,
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: 12,
-                color: textColor.withOpacity(0.8),
+                color: textColor.withOpacity(0.7),
                 height: 1.5,
               ),
               overflow: TextOverflow.ellipsis,
@@ -1953,13 +2292,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Color _getNoteColor(int index) {
     switch (index % 4) {
       case 0:
-        return Colors.yellow[100]!;
+        return const Color(0xFFF8E8F5); // Soft pink/lavender
       case 1:
-        return Colors.blue[100]!;
+        return const Color(0xFFE8F4FD); // Soft blue
       case 2:
-        return Colors.grey[300]!;
+        return const Color(0xFFF0F8E8); // Soft green
       case 3:
-        return Colors.blue[400]!;
+        return const Color(0xFFFFF4E8); // Soft peach/orange
       default:
         return Colors.white;
     }

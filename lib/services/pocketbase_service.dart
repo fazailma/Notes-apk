@@ -116,6 +116,37 @@ class PocketbaseService {
   bool get isLoggedIn => pb.authStore.isValid;
   dynamic get currentUser => pb.authStore.model;
 
+  // Method untuk cek koneksi ke server
+  Future<bool> checkServerConnection() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8090/api/health'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 5));
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Server connection check failed: $e');
+      return false;
+    }
+  }
+
+  // Method tambahan untuk refresh auth token jika diperlukan
+  Future<bool> refreshAuthToken() async {
+    try {
+      if (pb.authStore.isValid) {
+        await pb.collection('users').authRefresh();
+        await _saveAuthToStorage();
+        print('Auth token refreshed successfully');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Failed to refresh auth token: $e');
+      return false;
+    }
+  }
+
   // Untuk platform mobile (Android/iOS)
   Future<String?> uploadProfilePicture(universal_io.File imageFile) async {
     if (!isLoggedIn) {
@@ -124,7 +155,7 @@ class PocketbaseService {
     }
 
     try {
-      final userId = pb.authStore.model.id;
+      final userId = pb.authStore.model!.id;
       print('Mengunggah gambar untuk user ID: $userId');
 
       if (!await imageFile.exists()) {
@@ -187,7 +218,7 @@ class PocketbaseService {
     }
 
     try {
-      final userId = pb.authStore.model.id;
+      final userId = pb.authStore.model!.id;
       print('Mengunggah gambar untuk user ID: $userId (web)');
 
       final bytes = await imageFile.readAsBytes();
@@ -245,7 +276,7 @@ class PocketbaseService {
     }
 
     try {
-      final profile = await pb.collection('users').getOne(pb.authStore.model.id);
+      final profile = await pb.collection('users').getOne(pb.authStore.model!.id);
       if (profile.data['avatar'] != null && profile.data['avatar'].isNotEmpty) {
         profile.data['avatar'] = 'http://127.0.0.1:8090/api/files/users/${profile.id}/${profile.data['avatar']}';
       }
@@ -254,7 +285,7 @@ class PocketbaseService {
       print('Error getting profile: $e');
       try {
         await pb.collection('users').authRefresh();
-        final profile = await pb.collection('users').getOne(pb.authStore.model.id);
+        final profile = await pb.collection('users').getOne(pb.authStore.model!.id);
         if (profile.data['avatar'] != null && profile.data['avatar'].isNotEmpty) {
           profile.data['avatar'] = 'http://127.0.0.1:8090/api/files/users/${profile.id}/${profile.data['avatar']}';
         }
@@ -266,6 +297,14 @@ class PocketbaseService {
     }
   }
 
+  // 🔥 FIXED: Simple and reliable email validation
+  bool _isValidEmail(String email) {
+    // Simple but effective email validation
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return emailRegex.hasMatch(email.trim());
+  }
+
+  // 🔥 FIXED: Enhanced updateProfile method with better validation and error handling
   Future<RecordModel> updateProfile(String name, String email) async {
     if (!isLoggedIn) {
       print('User tidak login saat mencoba update profil');
@@ -273,102 +312,287 @@ class PocketbaseService {
     }
     
     try {
-      print('Mengupdate profil: name = $name, email = $email');
-      final userId = pb.authStore.model.id;
-      final currentUser = pb.authStore.model;
+      print('🚀 Starting profile update...');
+      print('📝 Name: $name');
+      print('📧 Email: $email');
       
-      // Validasi format email di sisi aplikasi
-      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$');
-      if (!emailRegex.hasMatch(email.trim())) {
-        throw Exception('Format email tidak valid. Gunakan format seperti: user@domain.com');
+      final userId = pb.authStore.model!.id;
+      final currentUser = pb.authStore.model!;
+      
+      // 🔍 Enhanced input validation
+      if (name.trim().isEmpty) {
+        throw Exception('Name cannot be empty');
+      }
+      
+      if (email.trim().isEmpty) {
+        throw Exception('Email cannot be empty');
+      }
+      
+      // 🔍 Simple email validation
+      if (!_isValidEmail(email)) {
+        throw Exception('Invalid email format. Please use format: user@domain.com');
       }
 
-      // Cek email saat ini
-      final currentEmail = currentUser.data['email'] as String;
-      final isEmailChanged = email.trim() != currentEmail;
+      // 🔍 Check current data
+      final currentEmail = currentUser.data['email'] as String? ?? '';
+      final currentName = currentUser.data['name'] as String? ?? '';
+      final isEmailChanged = email.trim().toLowerCase() != currentEmail.toLowerCase();
+      final isNameChanged = name.trim() != currentName;
       
-      print('Email saat ini: $currentEmail');
-      print('Email baru: $email');
-      print('Email berubah: $isEmailChanged');
+      print('📊 Current email: $currentEmail');
+      print('📊 New email: $email');
+      print('📊 Email changed: $isEmailChanged');
+      print('📊 Current name: $currentName');
+      print('📊 New name: $name');
+      print('📊 Name changed: $isNameChanged');
       
-      // Jika hanya nama yang berubah, update hanya nama
-      if (!isEmailChanged) {
-        print('Hanya update nama...');
-        final updateData = {
-          'name': name.trim(),
-        };
-        
-        final updatedRecord = await pb.collection('users').update(userId, body: updateData);
-        print('Nama berhasil diupdate');
-        
-        // Update authStore dengan data terbaru
-        pb.authStore.save(pb.authStore.token, updatedRecord);
-        await _saveAuthToStorage();
-        
-        return updatedRecord;
+      // If no changes
+      if (!isEmailChanged && !isNameChanged) {
+        throw Exception('No changes detected');
       }
       
-      // Jika email berubah, gunakan API langsung
-      print('Email berubah, menggunakan pendekatan API langsung...');
+      // 🔍 Check email uniqueness if email changed
+      if (isEmailChanged) {
+        try {
+          print('🔍 Checking email uniqueness...');
+          final emailCheck = await pb.collection('users').getList(
+            filter: 'email = "${email.trim()}" && id != "$userId"',
+            perPage: 1,
+          );
+          if (emailCheck.items.isNotEmpty) {
+            throw Exception('Email is already in use by another user');
+          }
+          print('✅ Email is unique');
+        } catch (e) {
+          if (e.toString().contains('Email is already in use')) {
+            rethrow;
+          }
+          print('⚠️ Warning: Could not check email uniqueness: $e');
+        }
+      }
       
+      // 🛠️ Prepare update data with proper field mapping
+      final updateData = <String, dynamic>{};
+      
+      if (isNameChanged) {
+        updateData['name'] = name.trim();
+      }
+      
+      if (isEmailChanged) {
+        // 🔥 FIXED: Add all required email fields for PocketBase
+        updateData['email'] = email.trim().toLowerCase(); // Normalize email
+        // Some PocketBase setups require emailConfirm field
+        updateData['emailConfirm'] = email.trim().toLowerCase();
+        // Mark email as verified if it was previously verified
+        if (currentUser.data['verified'] == true) {
+          updateData['verified'] = true;
+        }
+      }
+      
+      print('📦 Update data prepared: $updateData');
+      
+      // 🔄 Try multiple update methods for better compatibility
+      RecordModel? updatedRecord;
+      Exception? lastError;
+      
+      // Method 1: Try SDK with enhanced error handling
       try {
-        // Cek apakah email sudah ada di database
-        final emailCheck = await pb.collection('users').getList(
-          filter: 'email = "$email"',
-          perPage: 1,
-        );
-        if (emailCheck.items.isNotEmpty && emailCheck.items.first.id != userId) {
-          throw Exception('Email sudah digunakan oleh pengguna lain');
-        }
-
-        // Update dengan API langsung
-        final response = await http.patch(
-          Uri.parse('http://127.0.0.1:8090/api/collections/users/records/$userId'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${pb.authStore.token}',
-          },
-          body: jsonEncode({
-            'name': name.trim(),
-            'email': email.trim(),
-          }),
-        );
+        print('🔄 Method 1: Using PocketBase SDK...');
         
-        print('API Response Status: ${response.statusCode}');
-        print('API Response Body: ${response.body}');
+        // Refresh token before update
+        await pb.collection('users').authRefresh();
+        print('✅ Token refreshed');
         
-        if (response.statusCode == 200) {
-          final updatedData = jsonDecode(response.body);
-          final updatedRecord = RecordModel.fromJson(updatedData);
+        updatedRecord = await pb.collection('users').update(userId, body: updateData);
+        print('✅ Profile updated successfully via SDK');
+        
+      } catch (sdkError) {
+        print('❌ SDK Error: $sdkError');
+        lastError = Exception('SDK Error: $sdkError');
+        
+        // Method 2: Try direct HTTP with enhanced headers
+        try {
+          print('🔄 Method 2: Using direct HTTP request...');
           
-          // Update authStore dengan data terbaru
-          pb.authStore.save(pb.authStore.token, updatedRecord);
-          await _saveAuthToStorage();
+          final response = await http.patch(
+            Uri.parse('http://127.0.0.1:8090/api/collections/users/records/$userId'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${pb.authStore.token}',
+              'Accept': 'application/json',
+              'User-Agent': 'Flutter-App/1.0',
+            },
+            body: jsonEncode(updateData),
+          );
           
-          print('Profil berhasil diupdate via API');
-          return updatedRecord;
-        } else {
-          // Parse error dari response
-          final errorData = jsonDecode(response.body);
-          String errorMessage = 'Gagal memperbarui profil';
+          print('📡 HTTP Response Status: ${response.statusCode}');
+          print('📡 HTTP Response Headers: ${response.headers}');
+          print('📡 HTTP Response Body: ${response.body}');
           
-          if (errorData['message'] != null) {
-            errorMessage = errorData['message'];
+          if (response.statusCode == 200) {
+            final updatedData = jsonDecode(response.body);
+            updatedRecord = RecordModel.fromJson(updatedData);
+            print('✅ Profile updated successfully via HTTP');
+            
+          } else {
+            // 🔍 Enhanced error parsing
+            String errorMessage = _parseErrorResponse(response);
+            throw Exception(errorMessage);
           }
           
-          if (errorData['data'] != null && errorData['data']['email'] != null) {
-            errorMessage = 'Email: ${errorData['data']['email']['message']}';
-          }
+        } catch (httpError) {
+          print('❌ HTTP Error: $httpError');
+          lastError = Exception('HTTP Error: $httpError');
           
-          throw Exception(errorMessage);
+          // Method 3: Try with minimal data
+          try {
+            print('🔄 Method 3: Using minimal update data...');
+            
+            final minimalData = <String, dynamic>{};
+            if (isNameChanged) minimalData['name'] = name.trim();
+            if (isEmailChanged) minimalData['email'] = email.trim().toLowerCase();
+            
+            final response = await http.patch(
+              Uri.parse('http://127.0.0.1:8090/api/collections/users/records/$userId'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ${pb.authStore.token}',
+              },
+              body: jsonEncode(minimalData),
+            );
+            
+            print('📡 Minimal HTTP Response Status: ${response.statusCode}');
+            print('📡 Minimal HTTP Response Body: ${response.body}');
+            
+            if (response.statusCode == 200) {
+              final updatedData = jsonDecode(response.body);
+              updatedRecord = RecordModel.fromJson(updatedData);
+              print('✅ Profile updated successfully via minimal HTTP');
+            } else {
+              String errorMessage = _parseErrorResponse(response);
+              throw Exception(errorMessage);
+            }
+            
+          } catch (minimalError) {
+            print('❌ Minimal Error: $minimalError');
+            lastError = Exception('All methods failed. Last error: $minimalError');
+          }
         }
-      } catch (apiError) {
-        print('Error API call: $apiError');
-        throw Exception(apiError.toString());
       }
+      
+      // 🔍 Check if any method succeeded
+      if (updatedRecord == null) {
+        throw lastError ?? Exception('Failed to update profile: Unknown error');
+      }
+      
+      // 🔄 Update authStore with fresh data
+      pb.authStore.save(pb.authStore.token, updatedRecord);
+      await _saveAuthToStorage();
+      
+      print('✅ Profile update completed successfully');
+      return updatedRecord;
+      
     } catch (e) {
-      print('Error updating profile: $e');
-      rethrow;
+      print('💥 Error updating profile: $e');
+      
+      // 🔍 Clean up error message
+      String errorMessage = e.toString();
+      if (errorMessage.startsWith('Exception: ')) {
+        errorMessage = errorMessage.substring(11);
+      }
+      
+      // 🔍 Handle specific PocketBase errors with user-friendly messages
+      if (errorMessage.contains('validation_not_unique') || 
+          errorMessage.contains('already in use') ||
+          errorMessage.contains('email_not_unique')) {
+        errorMessage = 'Email is already in use by another user';
+      } else if (errorMessage.contains('validation_invalid_email') ||
+                 errorMessage.contains('invalid email format')) {
+        errorMessage = 'Invalid email format. Please use format: user@domain.com';
+      } else if (errorMessage.contains('validation_required')) {
+        errorMessage = 'All fields are required';
+      } else if (errorMessage.contains('SocketException') || 
+                 errorMessage.contains('Failed to fetch') || 
+                 errorMessage.contains('NetworkError') ||
+                 errorMessage.contains('Connection refused')) {
+        errorMessage = 'Cannot connect to server. Please check your internet connection.';
+      } else if (errorMessage.contains('401') || errorMessage.contains('Unauthorized')) {
+        errorMessage = 'Your session has expired. Please login again.';
+      } else if (errorMessage.contains('403') || errorMessage.contains('Forbidden')) {
+        errorMessage = 'You do not have permission to update this profile.';
+      } else if (errorMessage.contains('400') || errorMessage.contains('Bad Request')) {
+        errorMessage = 'Invalid data provided. Please check your input.';
+      }
+      
+      throw Exception(errorMessage);
+    }
+  }
+
+  // 🔍 Enhanced error response parser
+  String _parseErrorResponse(http.Response response) {
+    try {
+      final errorData = jsonDecode(response.body);
+      
+      // Handle PocketBase error format
+      if (errorData['message'] != null) {
+        return errorData['message'].toString();
+      }
+      
+      if (errorData['data'] != null) {
+        final data = errorData['data'];
+        
+        // Handle field-specific errors
+        if (data['email'] != null) {
+          final emailError = data['email'];
+          if (emailError['message'] != null) {
+            return 'Email: ${emailError['message']}';
+          } else if (emailError['code'] != null) {
+            switch (emailError['code']) {
+              case 'validation_invalid_email':
+                return 'Invalid email format';
+              case 'validation_not_unique':
+                return 'Email is already in use by another user';
+              case 'validation_required':
+                return 'Email is required';
+              default:
+                return 'Email error: ${emailError['code']}';
+            }
+          }
+        }
+        
+        if (data['name'] != null) {
+          final nameError = data['name'];
+          if (nameError['message'] != null) {
+            return 'Name: ${nameError['message']}';
+          } else if (nameError['code'] == 'validation_required') {
+            return 'Name is required';
+          }
+        }
+        
+        return 'Validation error: ${data.toString()}';
+      }
+      
+      // Fallback based on status code
+      switch (response.statusCode) {
+        case 400:
+          return 'Invalid data provided. Please check your input.';
+        case 401:
+          return 'Your session has expired. Please login again.';
+        case 403:
+          return 'You do not have permission to perform this action.';
+        case 404:
+          return 'Profile not found.';
+        case 422:
+          return 'Data validation failed. Please check your input.';
+        case 500:
+          return 'Server error occurred. Please try again later.';
+        default:
+          return 'Failed to update profile. Please try again.';
+      }
+      
+    } catch (parseError) {
+      print('Error parsing response: $parseError');
+      return 'Failed to update profile. Server returned: ${response.statusCode}';
     }
   }
 
@@ -390,7 +614,7 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
-      final userId = pb.authStore.model.id;
+      final userId = pb.authStore.model!.id;
       print('Fetching notes for user ID: $userId');
       final notes = await pb.collection('catatan').getFullList(
             sort: '-created',
@@ -410,10 +634,10 @@ class PocketbaseService {
     }
     try {
       print('Fetching notes for folder: $folderId');
-      print('Current user ID: ${pb.authStore.model.id}');
+      print('Current user ID: ${pb.authStore.model!.id}');
       final notes = await pb.collection('catatan').getFullList(
             sort: '-created',
-            filter: 'user_id = "${pb.authStore.model.id}" && folder_id = "$folderId"',
+            filter: 'user_id = "${pb.authStore.model!.id}" && folder_id = "$folderId"',
           );
       print('Found ${notes.length} notes in folder $folderId');
       return notes;
@@ -429,12 +653,12 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
-      print('Fetching recent notes for user ID: ${pb.authStore.model.id}');
+      print('Fetching recent notes for user ID: ${pb.authStore.model!.id}');
       final response = await pb.collection('catatan').getList(
             page: 1,
             perPage: limit,
             sort: '-updated',
-            filter: 'user_id = "${pb.authStore.model.id}"',
+            filter: 'user_id = "${pb.authStore.model!.id}"',
           );
       print('Recent notes fetched: ${response.items.length}');
       return response.items;
@@ -452,13 +676,13 @@ class PocketbaseService {
     try {
       print('Creating note with title: $title');
       print('Content length: ${content.length} characters');
-      print('User ID: ${pb.authStore.model.id}');
+      print('User ID: ${pb.authStore.model!.id}');
       print('Folder ID: ${folderId ?? 'None (Root folder)'}');
       
       final data = {
         'title': title,
         'content': content,
-        'user_id': pb.authStore.model.id,
+        'user_id': pb.authStore.model!.id,
       };
       
       if (folderId != null && folderId.isNotEmpty) {
@@ -497,8 +721,8 @@ class PocketbaseService {
       print('Fetching note with ID: $id to check permissions');
       final note = await pb.collection('catatan').getOne(id);
       
-      if (note.data['user_id'] != pb.authStore.model.id) {
-        print('Permission error: Note belongs to user ${note.data['user_id']}, but current user is ${pb.authStore.model.id}');
+      if (note.data['user_id'] != pb.authStore.model!.id) {
+        print('Permission error: Note belongs to user ${note.data['user_id']}, but current user is ${pb.authStore.model!.id}');
         throw Exception('You do not have permission to update this note');
       }
       
@@ -562,7 +786,7 @@ class PocketbaseService {
     }
     try {
       final note = await pb.collection('catatan').getOne(id);
-      if (note.data['user_id'] != pb.authStore.model.id) {
+      if (note.data['user_id'] != pb.authStore.model!.id) {
         throw Exception('You do not have permission to delete this note');
       }
       await pb.collection('catatan').delete(id);
@@ -579,7 +803,7 @@ class PocketbaseService {
     }
     try {
       final note = await pb.collection('catatan').getOne(id);
-      if (note.data['user_id'] != pb.authStore.model.id) {
+      if (note.data['user_id'] != pb.authStore.model!.id) {
         throw Exception('You do not have permission to access this note');
       }
       return note;
@@ -594,10 +818,10 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
-      print('Fetching folders for user: ${pb.authStore.model.id}');
+      print('Fetching folders for user: ${pb.authStore.model!.id}');
       final folders = await pb.collection('folders').getFullList(
             sort: 'name',
-            filter: 'user = "${pb.authStore.model.id}"',
+            filter: 'user = "${pb.authStore.model!.id}"',
           );
       print('Fetched ${folders.length} folders');
       return folders;
@@ -617,7 +841,7 @@ class PocketbaseService {
         'name': name,
         'color': color,
         'icon': icon,
-        'user': pb.authStore.model.id,
+        'user': pb.authStore.model!.id,
       });
       print('Folder created successfully: ${result.id}');
       return result;
@@ -637,7 +861,7 @@ class PocketbaseService {
       
       // First check if the folder belongs to the current user
       final folder = await pb.collection('folders').getOne(id);
-      if (folder.data['user'] != pb.authStore.model.id) {
+      if (folder.data['user'] != pb.authStore.model!.id) {
         throw Exception('You do not have permission to update this folder');
       }
       
@@ -658,6 +882,39 @@ class PocketbaseService {
     }
   }
 
+  // 🔥 NEW: Direct folder update method
+  Future<RecordModel> updateFolderDirect(String id, String name, String color, String icon) async {
+    if (!isLoggedIn) {
+      throw Exception('User is not logged in');
+    }
+    try {
+      print('Updating folder directly: $id');
+      
+      final response = await http.patch(
+        Uri.parse('http://127.0.0.1:8090/api/collections/folders/records/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${pb.authStore.token}',
+        },
+        body: jsonEncode({
+          'name': name,
+          'color': color,
+          'icon': icon,
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        final updatedData = jsonDecode(response.body);
+        return RecordModel.fromJson(updatedData);
+      } else {
+        throw Exception('HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      print('Error updating folder directly: $e');
+      throw Exception('Failed to update folder: $e');
+    }
+  }
+
   Future<void> deleteFolder(String id) async {
     if (!isLoggedIn) {
       throw Exception('User is not logged in');
@@ -667,7 +924,7 @@ class PocketbaseService {
       
       // First check if the folder belongs to the current user
       final folder = await pb.collection('folders').getOne(id);
-      if (folder.data['user'] != pb.authStore.model.id) {
+      if (folder.data['user'] != pb.authStore.model!.id) {
         throw Exception('You do not have permission to delete this folder');
       }
       
@@ -693,7 +950,7 @@ class PocketbaseService {
     }
   }
 
-  // Alternative method using HTTP directly for folder operations
+  // 🔥 NEW: Direct folder delete method
   Future<void> deleteFolderDirect(String id) async {
     if (!isLoggedIn) {
       throw Exception('User is not logged in');
@@ -701,62 +958,27 @@ class PocketbaseService {
     try {
       print('Deleting folder directly: $id');
       
+      // Delete notes in folder first
+      final notesInFolder = await getNotesByFolder(id);
+      for (final note in notesInFolder) {
+        await deleteNote(note.id);
+      }
+      
       final response = await http.delete(
         Uri.parse('http://127.0.0.1:8090/api/collections/folders/records/$id'),
         headers: {
           'Authorization': 'Bearer ${pb.authStore.token}',
-          'Content-Type': 'application/json',
         },
       );
       
-      print('Delete response status: ${response.statusCode}');
-      print('Delete response body: ${response.body}');
-      
-      if (response.statusCode == 204 || response.statusCode == 200) {
-        print('Folder deleted successfully via HTTP');
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception('HTTP Delete failed: ${errorData['message'] ?? 'Unknown error'}');
+      if (response.statusCode != 204) {
+        throw Exception('HTTP ${response.statusCode}: ${response.body}');
       }
+      
+      print('Folder deleted successfully via direct HTTP');
     } catch (e) {
-      print('Error deleting folder via HTTP: $e');
+      print('Error deleting folder directly: $e');
       throw Exception('Failed to delete folder: $e');
-    }
-  }
-
-  Future<RecordModel> updateFolderDirect(String id, String name, String color, String icon) async {
-    if (!isLoggedIn) {
-      throw Exception('User is not logged in');
-    }
-    try {
-      print('Updating folder directly: $id');
-      
-      final response = await http.patch(
-        Uri.parse('http://127.0.0.1:8090/api/collections/folders/records/$id'),
-        headers: {
-          'Authorization': 'Bearer ${pb.authStore.token}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'name': name,
-          'color': color,
-          'icon': icon,
-        }),
-      );
-      
-      print('Update response status: ${response.statusCode}');
-      print('Update response body: ${response.body}');
-      
-      if (response.statusCode == 200) {
-        final updatedData = jsonDecode(response.body);
-        return RecordModel.fromJson(updatedData);
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception('HTTP Update failed: ${errorData['message'] ?? 'Unknown error'}');
-      }
-    } catch (e) {
-      print('Error updating folder via HTTP: $e');
-      throw Exception('Failed to update folder: $e');
     }
   }
 
@@ -765,7 +987,7 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
-      final userId = pb.authStore.model.id;
+      final userId = pb.authStore.model!.id;
       print('Fetching events for user ID: $userId');
       final events = await pb.collection('events').getFullList(
             sort: 'start_date',
@@ -784,7 +1006,7 @@ class PocketbaseService {
       throw Exception('User is not logged in');
     }
     try {
-      final userId = pb.authStore.model.id;
+      final userId = pb.authStore.model!.id;
       final startStr = start.toIso8601String();
       final endStr = end.toIso8601String();
       print('Fetching events between $startStr and $endStr');
@@ -835,7 +1057,7 @@ class PocketbaseService {
         'start_date': startDate.toIso8601String(),
         'end_date': endDate.toIso8601String(),
         'all_day': allDay,
-        'user_id': pb.authStore.model.id,
+        'user_id': pb.authStore.model!.id,
       };
       if (color != null) data['color'] = color;
       if (location != null) data['location'] = location;
@@ -865,7 +1087,7 @@ class PocketbaseService {
     }
     try {
       final event = await pb.collection('events').getOne(id);
-      if (event.data['user_id'] != pb.authStore.model.id) {
+      if (event.data['user_id'] != pb.authStore.model!.id) {
         throw Exception('You do not have permission to update this event');
       }
       final data = <String, dynamic>{};
@@ -890,7 +1112,7 @@ class PocketbaseService {
     }
     try {
       final event = await pb.collection('events').getOne(id);
-      if (event.data['user_id'] != pb.authStore.model.id) {
+      if (event.data['user_id'] != pb.authStore.model!.id) {
         throw Exception('You do not have permission to delete this event');
       }
       await pb.collection('events').delete(id);
@@ -907,7 +1129,7 @@ class PocketbaseService {
     }
     try {
       final event = await pb.collection('events').getOne(id);
-      if (event.data['user_id'] != pb.authStore.model.id) {
+      if (event.data['user_id'] != pb.authStore.model!.id) {
         throw Exception('You do not have permission to access this event');
       }
       return event;
